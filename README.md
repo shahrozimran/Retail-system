@@ -80,10 +80,10 @@ This project is optimized for deployment on **Netlify**.
 ---
 
 ## 👤 Author
-**Global Auto Parts Team**
+**Shahroz Imran**
 - **Address:** House 10A Street 25B New Wassan Pura Lahore
 - **Phone:** 03114437441
-- **Email:** aifunk62@gmail.com
+- **Email:** Shahrozimran01@gmail.com
 
 ---
 
