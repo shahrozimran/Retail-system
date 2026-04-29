@@ -18,7 +18,7 @@ export default function Sidebar() {
     <aside className="w-64 bg-base-950 border-r border-base-800 flex-col hidden md:flex transition-all duration-300">
       <div className="h-16 flex items-center px-6 border-b border-base-800">
         <Box className="w-6 h-6 text-white mr-2" />
-        <span className="text-lg font-bold text-white tracking-wide">UMS</span>
+        <span className="text-lg font-bold text-white tracking-wide">Global Auto Parts</span>
       </div>
       <nav className="flex-1 py-4 px-3 space-y-1">
         {links.map((link) => {

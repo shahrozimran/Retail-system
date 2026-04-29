@@ -169,7 +169,7 @@ export default function Transactions() {
   };
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
   return (
     <div className="space-y-6 fade-in">
@@ -352,7 +352,7 @@ export default function Transactions() {
                   <input required type="number" min="1" value={eQty} onChange={(e) => setEQty(e.target.value)} className={inputClass} />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Unit Price ($)</label>
+                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Unit Price (PKR)</label>
                   <input required type="number" step="0.01" min="0" value={ePrice} onChange={(e) => setEPrice(e.target.value)} className={inputClass} />
                 </div>
               </div>

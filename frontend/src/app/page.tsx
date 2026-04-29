@@ -50,7 +50,7 @@ export default function Dashboard() {
   useEffect(() => { setMounted(true); }, []);
 
   const formatCurrency = (val: number) => 
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
   // Derived Data
   const lowStockItems = products.filter(p => p.stock <= p.minThreshold).slice(0, 4);

@@ -74,8 +74,8 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const tax = subtotal * (Number(taxRate) / 100);
   const grandTotal = subtotal + tax;
 
-  const fmt = (v: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v);
+  const fmt = (v: number) => 
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(v);
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -104,27 +104,27 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       const margin = 18;
       const contentW = pageW - margin * 2;
 
-      doc.setFillColor(10, 10, 10);
-      doc.rect(0, 0, pageW, pageH, 'F');
       doc.setFillColor(255, 255, 255);
+      doc.rect(0, 0, pageW, pageH, 'F');
+      doc.setFillColor(0, 0, 0);
       doc.rect(0, 0, pageW, 1.5, 'F');
 
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(22);
-      doc.setTextColor(255, 255, 255);
+      doc.setTextColor(0, 0, 0);
       doc.text(companyName || 'Global Auto Parts', margin, 22);
 
       if (companyAddress) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
         doc.text(companyAddress, margin, 28);
       }
       const contactLine = [companyEmail, companyPhone].filter(Boolean).join('  |  ');
       if (contactLine) {
-        doc.setFontSize(8); doc.setTextColor(140, 140, 140);
+        doc.setFontSize(8); doc.setTextColor(100, 100, 100);
         doc.text(contactLine, margin, companyAddress ? 33 : 28);
       }
 
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(32); doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(32); doc.setTextColor(0, 0, 0);
       doc.text('INVOICE', pageW - margin, 22, { align: 'right' });
 
       const metaStartY = 28;
@@ -137,30 +137,30 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       doc.setFontSize(8);
       metaLines.forEach(([label, value], i) => {
         const y = metaStartY + i * 5.5;
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(140, 140, 140);
+        doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
         doc.text(label, pageW - margin - 35, y, { align: 'left' });
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
         doc.text(value, pageW - margin, y, { align: 'right' });
       });
 
       const dividerY = 48;
-      doc.setDrawColor(40, 40, 40); doc.setLineWidth(0.4);
+      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.4);
       doc.line(margin, dividerY, pageW - margin, dividerY);
 
       const billY = dividerY + 8;
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(120, 120, 120);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(100, 100, 100);
       doc.text('BILL TO', margin, billY);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(255, 255, 255);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
       doc.text(clientName || 'Client', margin, billY + 6);
 
       let currentBillY = billY + 11;
       if (clientAddress) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(160, 160, 160);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
         doc.text(clientAddress, margin, currentBillY);
         currentBillY += 5;
       }
       if (clientEmail) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(160, 160, 160);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
         doc.text(clientEmail, margin, currentBillY);
       }
 
@@ -175,28 +175,28 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
           t.type === 'Out' ? 'Sale' : 'Stock In',
           t.qtyChange, fmt(t.unitPrice), fmt(t.total),
         ]),
-        headStyles: { fillColor: [30, 30, 30], textColor: [180, 180, 180], fontStyle: 'bold', fontSize: 7.5, cellPadding: 4 },
-        bodyStyles: { fillColor: [15, 15, 15], textColor: [220, 220, 220], fontSize: 8, lineColor: [35, 35, 35], lineWidth: 0.2, cellPadding: 4.5 },
-        alternateRowStyles: { fillColor: [22, 22, 22] },
+        headStyles: { fillColor: [248, 250, 252], textColor: [100, 100, 100], fontStyle: 'bold', fontSize: 8, halign: 'center' },
+        bodyStyles: { fillColor: [255, 255, 255], textColor: [40, 40, 40], fontSize: 8.5, lineColor: [240, 240, 240], lineWidth: 0.1, halign: 'center' },
+        alternateRowStyles: { fillColor: [252, 252, 252] },
         columnStyles: {
-          0: { cellWidth: 10, halign: 'center', textColor: [100, 100, 100] },
-          1: { cellWidth: 'auto', fontStyle: 'bold', textColor: [255, 255, 255], halign: 'left' },
-          2: { cellWidth: 22, halign: 'center' }, 
-          3: { cellWidth: 28, halign: 'center' }, 
-          4: { cellWidth: 18, halign: 'center' },
-          5: { cellWidth: 12, halign: 'center' }, 
-          6: { cellWidth: 25, halign: 'right' },
-          7: { cellWidth: 25, halign: 'right', fontStyle: 'bold', textColor: [255, 255, 255] },
+          0: { cellWidth: 10, textColor: [120, 120, 120] },
+          1: { cellWidth: 'auto', fontStyle: 'bold', textColor: [0, 0, 0] },
+          2: { cellWidth: 16 }, 
+          3: { cellWidth: 20 }, 
+          4: { cellWidth: 14 },
+          5: { cellWidth: 12 }, 
+          6: { cellWidth: 26 },
+          7: { cellWidth: 30, fontStyle: 'bold', textColor: [0, 0, 0] },
         },
-        styles: { overflow: 'linebreak', cellPadding: 4 },
+        styles: { overflow: 'linebreak', cellPadding: { top: 5, right: 2, bottom: 5, left: 2 } },
       });
 
       const finalY = (doc as any).lastAutoTable.finalY + 8;
       const totalsX = pageW - margin - 65;
       const drawTotalRow = (label: string, value: string, y: number, bold = false, highlight = false) => {
-        if (highlight) { doc.setFillColor(255, 255, 255); doc.roundedRect(totalsX - 2, y - 5, 65 + 2, 9, 1.5, 1.5, 'F'); }
+        if (highlight) { doc.setFillColor(0, 0, 0); doc.roundedRect(totalsX - 2, y - 5, 65 + 2, 9, 1.5, 1.5, 'F'); }
         doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(bold ? 9 : 8);
-        doc.setTextColor(highlight ? 10 : bold ? 220 : 140);
+        doc.setTextColor(highlight ? 255 : bold ? 0 : 80);
         doc.text(label, totalsX + 2, y); doc.text(value, pageW - margin, y, { align: 'right' });
       };
 
@@ -204,22 +204,22 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       drawTotalRow('Subtotal', fmt(subtotal), ty);
       if (Number(taxRate) > 0) {
         ty += 7; drawTotalRow(`Tax (${taxRate}%)`, fmt(tax), ty);
-        doc.setDrawColor(50, 50, 50); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); ty += 8;
+        doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); ty += 8;
         drawTotalRow('TOTAL DUE', fmt(grandTotal), ty + 2, true, true);
       } else {
-        doc.setDrawColor(50, 50, 50); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); ty += 8;
+        doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); ty += 8;
         drawTotalRow('TOTAL DUE', fmt(grandTotal), ty + 2, true, true);
       }
 
       if (notes) {
         const notesY = Math.max(ty + 20, finalY + 40);
         doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(100, 100, 100); doc.text('NOTES', margin, notesY);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(180, 180, 180);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(80, 80, 80);
         doc.text(notes, margin, notesY + 5, { maxWidth: contentW * 0.55 });
       }
 
-      doc.setFillColor(25, 25, 25); doc.rect(0, pageH - 14, pageW, 14, 'F');
-      doc.setFontSize(7); doc.setTextColor(80, 80, 80);
+      doc.setFillColor(245, 245, 245); doc.rect(0, pageH - 14, pageW, 14, 'F');
+      doc.setFontSize(7); doc.setTextColor(100, 100, 100);
       doc.text(companyName, margin, pageH - 5.5);
       doc.text(`Generated ${new Date().toLocaleString()}`, pageW - margin, pageH - 5.5, { align: 'right' });
 

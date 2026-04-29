@@ -57,7 +57,7 @@ export default function Reports() {
   useEffect(() => { setMounted(true); }, []);
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
   // Summary stats
   const totalRevenue = finances.filter(f => f.category === 'Sales').reduce((s, f) => s + f.credit, 0);

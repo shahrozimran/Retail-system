@@ -130,7 +130,7 @@ export default function Inventory() {
   };
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
   const filteredProducts = products.filter((p) => {
     if (!searchTerm) return true;
@@ -294,11 +294,11 @@ export default function Inventory() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Buy Price ($) <span className="text-red-400">*</span></label>
+                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Buy Price (PKR) <span className="text-red-400">*</span></label>
                   <input required type="number" step="0.01" min="0" value={pBuy} onChange={(e) => setPBuy(e.target.value)} className={inputClass} placeholder="0.00" />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Sale Price ($) <span className="text-red-400">*</span></label>
+                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Sale Price (PKR) <span className="text-red-400">*</span></label>
                   <input required type="number" step="0.01" min="0" value={pSale} onChange={(e) => setPSale(e.target.value)} className={inputClass} placeholder="0.00" />
                 </div>
               </div>

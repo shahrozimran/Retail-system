@@ -9,7 +9,7 @@ export default function Header() {
     <header className="h-16 bg-base-950/50 backdrop-blur-sm border-b border-base-800 flex items-center justify-between px-6 z-10 sticky top-0">
       <div className="flex items-center md:hidden">
         <Box className="w-6 h-6 text-white mr-2" />
-        <span className="text-lg font-bold text-white">UMS</span>
+        <span className="text-lg font-bold text-white">Global Auto Parts</span>
       </div>
       <div className="hidden md:block">
         {/* Can put breadcrumbs or current page title here if needed */}

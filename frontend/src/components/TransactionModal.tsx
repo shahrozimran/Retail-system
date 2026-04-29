@@ -123,7 +123,7 @@ export default function TransactionModal({
   }, 0);
 
   const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(val);
+    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -271,7 +271,7 @@ export default function TransactionModal({
 
                       {/* Unit Price */}
                       <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">$</span>
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">PKR</span>
                         <input
                           required
                           type="number"
@@ -280,7 +280,7 @@ export default function TransactionModal({
                           placeholder="0.00"
                           value={item.unitPrice}
                           onChange={(e) => updateItem(item.id, { unitPrice: e.target.value })}
-                          className={`${inputClass} !pl-7`}
+                          className={`${inputClass} !pl-10`}
                         />
                       </div>
 
