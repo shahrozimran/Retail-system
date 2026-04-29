@@ -20,7 +20,7 @@ export default function LoginPage() {
 
     // Mock authentication logic
     setTimeout(() => {
-      if (username === 'admin' && password === 'admin123') {
+      if (username === 'admin' && password === 'globalautoparts') {
         // Set a simple cookie
         document.cookie = "auth_token=true; path=/; max-age=86400; SameSite=Lax";
         router.push('/');
