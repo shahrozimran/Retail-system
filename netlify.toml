@@ -1,9 +1,0 @@
-[build]
-  command = "npm run build --prefix frontend"
-  publish = "frontend/.next"
-
-[build.environment]
-  NODE_VERSION = "20"
-
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
