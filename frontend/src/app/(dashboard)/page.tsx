@@ -57,10 +57,17 @@ export default function Dashboard() {
   const recentTx = transactions.slice(0, 5);
   
   // Calculate today's sales
-  const today = new Date().toDateString();
-  const todaySales = transactions
-    .filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === today)
-    .reduce((sum, t) => sum + (t.total || 0), 0);
+  const [todaySales, setTodaySales] = useState(0);
+
+  useEffect(() => {
+    if (transactions.length > 0) {
+      const today = new Date().toDateString();
+      const sales = transactions
+        .filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === today)
+        .reduce((sum, t) => sum + (t.total || 0), 0);
+      setTodaySales(sales);
+    }
+  }, [transactions]);
 
   if (!API_URL) {
     return <div className="p-8 bg-red-950/20 text-red-500 rounded-xl border border-red-900">NEXT_PUBLIC_API_URL not configured.</div>;
@@ -91,7 +98,7 @@ export default function Dashboard() {
       </div>
 
       {/* Primary Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard 
           label="Total Stock Value" 
           value={formatCurrency(stats?.totalInventoryValue || 0)} 
@@ -161,7 +168,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <QuickLinkCard title="Inventory Management" desc="Update stock levels and add new parts." href="/inventory" icon={Package} />
             <QuickLinkCard title="Financial Reports" desc="Generate invoices and view ledger." href="/reports" icon={DollarSign} />
           </div>

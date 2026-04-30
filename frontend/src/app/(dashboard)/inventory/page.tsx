@@ -135,7 +135,11 @@ export default function Inventory() {
   const filteredProducts = products.filter((p) => {
     if (!searchTerm) return true;
     const q = searchTerm.toLowerCase();
-    return (p.name || '').toLowerCase().includes(q) || (p.sku || '').toLowerCase().includes(q) || (p.category || '').toLowerCase().includes(q);
+    const name = String(p.name || '').toLowerCase();
+    const sku = String(p.sku || '').toLowerCase();
+    const category = String(p.category || '').toLowerCase();
+    const status = String(p.status || '').toLowerCase();
+    return name.includes(q) || sku.includes(q) || category.includes(q) || status.includes(q);
   });
 
   if (isLoading) {
@@ -186,16 +190,16 @@ export default function Inventory() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse min-w-[700px]">
             <thead>
               <tr className="bg-base-900 text-neutral-400 text-xs uppercase tracking-wider border-b border-base-800">
                 <th className="px-6 py-4 font-bold">Product</th>
-                <th className="px-6 py-4 font-bold">SKU</th>
-                <th className="px-6 py-4 font-bold">Buy Price</th>
-                <th className="px-6 py-4 font-bold">Sale Price</th>
-                <th className="px-6 py-4 font-bold">Stock</th>
-                <th className="px-6 py-4 font-bold text-center">Status</th>
-                <th className="px-6 py-4 font-bold text-center">Actions</th>
+                <th className="px-6 py-4 font-bold w-24">SKU</th>
+                <th className="px-6 py-4 font-bold w-28">Buy Price</th>
+                <th className="px-6 py-4 font-bold w-28">Sale Price</th>
+                <th className="px-6 py-4 font-bold w-24 text-center">Stock</th>
+                <th className="px-6 py-4 font-bold text-center w-28">Status</th>
+                <th className="px-6 py-4 font-bold text-center w-20">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-base-800 text-sm">

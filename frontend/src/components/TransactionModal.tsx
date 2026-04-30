@@ -29,10 +29,8 @@ type LineItem = {
 const selectClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white appearance-none';
 const inputClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white placeholder-neutral-600';
 
-let lineIdCounter = 1;
-
-function makeItem(): LineItem {
-  return { id: lineIdCounter++, productUuid: '', searchQuery: '', type: 'Out', qtyChange: '1', unitPrice: '' };
+function makeItem(id: number): LineItem {
+  return { id, productUuid: '', searchQuery: '', type: 'Out', qtyChange: '1', unitPrice: '' };
 }
 
 export default function TransactionModal({
@@ -53,16 +51,18 @@ export default function TransactionModal({
     Array.isArray(dashboardRes?.data?.products) ? dashboardRes.data.products : []
   , [dashboardRes]);
 
-  const [items, setItems] = useState<LineItem[]>([makeItem()]);
+  const [items, setItems] = useState<LineItem[]>([]);
   const [buyerName, setBuyerName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [nextId, setNextId] = useState(1);
 
   // Reset when opened
   useEffect(() => {
     if (isOpen) {
-      setItems([makeItem()]);
+      setItems([makeItem(1)]);
+      setNextId(2);
       setBuyerName('');
       setDescription('');
       setError('');
@@ -107,7 +107,10 @@ export default function TransactionModal({
     );
   };
 
-  const addItem = () => setItems((prev) => [...prev, makeItem()]);
+  const addItem = () => {
+    setItems((prev) => [...prev, makeItem(nextId)]);
+    setNextId(prev => prev + 1);
+  };
 
   const removeItem = (id: number) => {
     if (items.length === 1) return;

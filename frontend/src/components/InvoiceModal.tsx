@@ -30,8 +30,8 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const [generating, setGenerating] = useState(false);
 
   // Invoice meta fields
-  const [invoiceNo, setInvoiceNo] = useState(`INV-${Date.now().toString().slice(-6)}`);
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
+  const [invoiceNo, setInvoiceNo] = useState('');
+  const [issueDate, setIssueDate] = useState('');
   const [dueDate, setDueDate] = useState('');
   
   // Permanent Company Defaults
@@ -56,6 +56,8 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   useEffect(() => {
     if (isOpen) {
       setSelectedIds(new Set());
+      setInvoiceNo(`INV-${Date.now().toString().slice(-6)}`);
+      setIssueDate(new Date().toISOString().split('T')[0]);
     }
   }, [isOpen]);
 

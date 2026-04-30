@@ -1,15 +1,24 @@
 'use client';
 
-import { Box, Bell, LogOut, User as UserIcon } from 'lucide-react';
+import { Box, Bell, LogOut, User as UserIcon, Menu } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
-export default function Header() {
+interface HeaderProps {
+  onMenuClick: () => void;
+}
+
+export default function Header({ onMenuClick }: HeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -31,15 +40,20 @@ export default function Header() {
 
   return (
     <header className="h-16 bg-base-950/50 backdrop-blur-sm border-b border-base-800 flex items-center justify-between px-6 z-10 sticky top-0">
-      <div className="flex items-center md:hidden">
-        <Box className="w-6 h-6 text-white mr-2" />
+      <div className="flex items-center lg:hidden">
+        <button 
+          onClick={onMenuClick}
+          className="p-2 -ml-2 text-neutral-400 hover:text-white rounded-lg hover:bg-neutral-800 transition-colors mr-2"
+        >
+          <Menu className="w-6 h-6" />
+        </button>
         <span className="text-lg font-bold text-white">Global Auto Parts</span>
       </div>
-      <div className="hidden md:block">
+      <div className="hidden lg:block">
         {/* Can put breadcrumbs or current page title here if needed */}
       </div>
       <div className="flex items-center space-x-4 ml-auto">
-        {!API_URL && (
+        {mounted && !API_URL && (
           <span className="text-xs bg-red-900/50 text-red-400 px-3 py-1 rounded-full border border-red-900 hidden sm:inline-block">
             API_URL missing
           </span>

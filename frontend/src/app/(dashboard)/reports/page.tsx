@@ -73,7 +73,7 @@ export default function Reports() {
   return (
     <div className="space-y-6 fade-in">
       {/* Summary cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {statCards.map((card) => (
           <div key={card.label} className={`p-5 rounded-xl border ${card.bg} flex items-center gap-4`}>
             <div className={`p-3 rounded-lg bg-white/5 ${card.color}`}>
@@ -115,14 +115,14 @@ export default function Reports() {
           ) : error ? (
             <div className="p-8 text-center text-red-400">{error}</div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[800px]">
               <thead>
                 <tr className="bg-base-900 text-neutral-400 text-xs uppercase tracking-wider border-b border-base-800">
                   <th className="px-6 py-4 font-bold">Date</th>
-                  <th className="px-6 py-4 font-bold">Category</th>
-                  <th className="px-6 py-4 font-bold text-right">Debit (Expense)</th>
-                  <th className="px-6 py-4 font-bold text-right">Credit (Income)</th>
-                  <th className="px-6 py-4 font-bold text-right">Balance</th>
+                  <th className="px-6 py-4 font-bold w-32">Category</th>
+                  <th className="px-6 py-4 font-bold text-right w-40">Debit (Expense)</th>
+                  <th className="px-6 py-4 font-bold text-right w-40">Credit (Income)</th>
+                  <th className="px-6 py-4 font-bold text-right w-32">Balance</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-base-800 text-sm">

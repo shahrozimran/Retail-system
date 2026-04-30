@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import useSWR from 'swr';
-import { Plus, Inbox, Loader2, Calendar, Edit, Trash2, CheckCircle, XCircle, ChevronDown, ChevronRight, Package } from 'lucide-react';
+import { Plus, Inbox, Loader2, Calendar, Edit, Trash2, CheckCircle, XCircle, ChevronDown, ChevronRight, Package, Search } from 'lucide-react';
 import TransactionModal from '@/components/TransactionModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -101,6 +101,7 @@ export default function Transactions() {
   const [ePrice, setEPrice] = useState('');
   const [eDesc, setEDesc] = useState('');
   const [eBuyer, setEBuyer] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -171,36 +172,61 @@ export default function Transactions() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
+  const filteredBatches = batches.filter((batch) => {
+    if (!searchTerm) return true;
+    const q = searchTerm.toLowerCase();
+    const batchId = String(batch.batchId || '').toLowerCase();
+    const buyerName = String(batch.buyerName || '').toLowerCase();
+    const description = String(batch.description || '').toLowerCase();
+    const productNames = batch.items.map(i => String(i.productName || '').toLowerCase()).join(' ');
+    const productSkus = batch.items.map(i => String(i.productSku || '').toLowerCase()).join(' ');
+    
+    return batchId.includes(q) || buyerName.includes(q) || description.includes(q) || productNames.includes(q) || productSkus.includes(q);
+  });
+
   return (
     <div className="space-y-6 fade-in">
       <div className="bg-base-950 border border-base-800 rounded-xl overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-base-800 flex items-center justify-between gap-4">
+        <div className="p-5 border-b border-base-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-white">Transaction History</h2>
             <p className="text-xs text-neutral-500 mt-0.5">Multi-product orders are grouped as a single transaction</p>
           </div>
-          <button
-            onClick={() => setIsTxModalOpen(true)}
-            className="flex items-center gap-2 bg-white hover:bg-neutral-200 text-black px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-lg whitespace-nowrap"
-          >
-            <Plus className="w-4 h-4" /> Record Transaction
-          </button>
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by buyer, product, or SKU..."
+                className="pl-9 pr-4 py-2 bg-base-900 border border-base-800 rounded-lg text-sm text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white w-full sm:w-64"
+              />
+            </div>
+            <button
+              onClick={() => setIsTxModalOpen(true)}
+              className="flex items-center gap-2 bg-white hover:bg-neutral-200 text-black px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-lg whitespace-nowrap"
+            >
+              <Plus className="w-4 h-4" /> Record Transaction
+            </button>
+          </div>
         </div>
 
-        <div className="divide-y divide-base-800">
+        <div className="divide-y divide-base-800 overflow-x-auto">
           {isLoading ? (
             <div className="p-12 flex justify-center">
               <Loader2 className="w-8 h-8 animate-spin text-neutral-500" />
             </div>
           ) : error ? (
             <div className="p-8 text-center text-red-400">{error}</div>
-          ) : batches.length === 0 ? (
+          ) : filteredBatches.length === 0 ? (
             <div className="p-12 text-center text-neutral-500">
               <Inbox className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>No transactions yet. Click Record Transaction to add one.</p>
+              <p>{searchTerm ? 'No transactions match your search.' : 'No transactions yet. Click Record Transaction to add one.'}</p>
             </div>
           ) : (
-            batches.map((batch) => {
+            <div className="min-w-[800px]">
+              {filteredBatches.map((batch) => {
               const isMulti = batch.items.length > 1;
               const isExpanded = expandedBatches.has(batch.batchId);
               const firstItem = batch.items[0];
@@ -230,7 +256,7 @@ export default function Transactions() {
                     </div>
 
                     {/* Products summary */}
-                    <div className="flex-1 min-w-0">
+                    <div className="w-80 grow min-w-0">
                       {isMulti ? (
                         <div className="flex items-center gap-2">
                           <Package className="w-4 h-4 text-neutral-500 shrink-0" />
@@ -285,7 +311,7 @@ export default function Transactions() {
                         <div key={item.id} className={`flex items-center gap-4 px-6 py-3 text-sm group/item ${idx !== batch.items.length - 1 ? 'border-b border-base-800/30' : ''}`}>
                           <div className="w-5 shrink-0" />
                           <div className="w-44 shrink-0 text-neutral-600 text-xs">Item {idx + 1}</div>
-                          <div className="flex-1 min-w-0">
+                          <div className="w-80 grow min-w-0">
                             <p className="font-medium text-white">{item.productName}</p>
                             <p className="text-xs text-neutral-500 font-mono">{item.productSku}</p>
                           </div>
@@ -310,7 +336,7 @@ export default function Transactions() {
                       <div className="flex items-center gap-4 px-6 py-3 border-t border-base-800/50 bg-base-900/50">
                         <div className="w-5 shrink-0" />
                         <div className="w-44 shrink-0" />
-                        <div className="flex-1 text-xs text-neutral-500">
+                        <div className="w-80 grow text-xs text-neutral-500">
                           {batch.description && <span>Note: {batch.description}</span>}
                         </div>
                         <div className="w-28 shrink-0" />
@@ -322,8 +348,9 @@ export default function Transactions() {
                   )}
                 </div>
               );
-            })
-          )}
+            })}
+          </div>
+        )}
         </div>
       </div>
 
