@@ -59,15 +59,15 @@ export default function Reports() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
-  // Summary stats
-  const totalRevenue = finances.filter(f => f.category === 'Sales').reduce((s, f) => s + f.credit, 0);
-  const totalExpenses = finances.filter(f => f.category === 'Expenses').reduce((s, f) => s + f.debit, 0);
-  const netBalance = finances.length > 0 ? finances[0].balanceSnapshot : 0;
+  // Summary stats (Calculated from transactions for better consistency)
+  const totalRevenue = transactions.filter(t => t.type === 'Out').reduce((s, t) => s + t.total, 0);
+  const totalExpenses = transactions.filter(t => t.type === 'In').reduce((s, t) => s + t.total, 0);
+  const netBalance = totalRevenue - totalExpenses;
 
   const statCards = [
-    { label: 'Total Revenue', value: formatCurrency(totalRevenue), icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-950/20 border-green-900/40' },
-    { label: 'Total Expenses', value: formatCurrency(totalExpenses), icon: TrendingDown, color: 'text-red-400', bg: 'bg-red-950/20 border-red-900/40' },
-    { label: 'Net Balance', value: formatCurrency(netBalance), icon: DollarSign, color: 'text-white', bg: 'bg-white/5 border-white/10' },
+    { label: 'Sales Revenue', value: formatCurrency(totalRevenue), icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-950/20 border-green-900/40' },
+    { label: 'Returns/Expenses', value: formatCurrency(totalExpenses), icon: TrendingDown, color: 'text-red-400', bg: 'bg-red-950/20 border-red-900/40' },
+    { label: 'Net Profit/Loss', value: formatCurrency(netBalance), icon: DollarSign, color: 'text-white', bg: 'bg-white/5 border-white/10' },
   ];
 
   return (
@@ -87,14 +87,14 @@ export default function Reports() {
         ))}
       </div>
 
-      {/* Ledger table */}
+      {/* Transaction Table */}
       <div className="bg-base-950 border border-base-800 rounded-xl overflow-hidden shadow-sm">
         <div className="p-5 border-b border-base-800 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <PieChart className="w-5 h-5 text-neutral-500" />
             <div>
-              <h2 className="text-xl font-bold text-white">Financial Ledger</h2>
-              <p className="text-xs text-neutral-500 mt-0.5">{finances.length} records</p>
+              <h2 className="text-xl font-bold text-white">Sales & Activity Report</h2>
+              <p className="text-xs text-neutral-500 mt-0.5">{transactions.length} total transactions</p>
             </div>
           </div>
           <button
@@ -115,42 +115,49 @@ export default function Reports() {
           ) : error ? (
             <div className="p-8 text-center text-red-400">{error}</div>
           ) : (
-            <table className="w-full text-left border-collapse min-w-[800px]">
+            <table className="w-full text-left border-collapse min-w-[900px]">
               <thead>
-                <tr className="bg-base-900 text-neutral-400 text-xs uppercase tracking-wider border-b border-base-800">
+                <tr className="bg-base-900 text-neutral-400 text-[10px] uppercase tracking-widest border-b border-base-800">
                   <th className="px-6 py-4 font-bold">Date</th>
-                  <th className="px-6 py-4 font-bold w-32">Category</th>
-                  <th className="px-6 py-4 font-bold text-right w-40">Debit (Expense)</th>
-                  <th className="px-6 py-4 font-bold text-right w-40">Credit (Income)</th>
-                  <th className="px-6 py-4 font-bold text-right w-32">Balance</th>
+                  <th className="px-6 py-4 font-bold">Product</th>
+                  <th className="px-6 py-4 font-bold">Buyer</th>
+                  <th className="px-6 py-4 font-bold text-center">Type</th>
+                  <th className="px-6 py-4 font-bold text-center">Qty</th>
+                  <th className="px-6 py-4 font-bold text-right">Total Amount</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-base-800 text-sm">
-                {finances.map((f, index) => (
-                  <tr key={index} className="hover:bg-base-900/50 transition-colors group">
-                    <td className="px-6 py-4 text-neutral-400">
+                {transactions.map((t) => (
+                  <tr key={t.id} className="hover:bg-base-900/50 transition-colors group">
+                    <td className="px-6 py-4 text-neutral-400 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 shrink-0" />
-                        {mounted ? new Date(f.date).toLocaleString() : '...'}
+                        {mounted ? new Date(t.date).toLocaleString() : '...'}
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
-                        f.category === 'Sales'
+                      <div>
+                        <p className="font-bold text-white">{t.productName}</p>
+                        <p className="text-[10px] text-neutral-500 font-mono uppercase">{t.productSku}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <p className="text-neutral-300">{t.buyerName || 'Walk-in Client'}</p>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${
+                        t.type === 'Out'
                           ? 'bg-white text-black border-white'
-                          : 'bg-neutral-900 text-neutral-300 border-neutral-700'
+                          : 'bg-red-950/30 text-red-400 border-red-900/50'
                       }`}>
-                        {f.category}
+                        {t.type === 'Out' ? 'SALE' : 'RETURN'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-right text-red-400 tabular-nums">
-                      {f.debit > 0 ? formatCurrency(f.debit) : <span className="text-neutral-700">-</span>}
+                    <td className="px-6 py-4 text-center font-mono font-bold text-white">
+                      {t.qtyChange}
                     </td>
-                    <td className="px-6 py-4 text-right text-green-400 font-medium tabular-nums">
-                      {f.credit > 0 ? formatCurrency(f.credit) : <span className="text-neutral-700">-</span>}
-                    </td>
-                    <td className={`px-6 py-4 text-right font-bold tabular-nums ${f.balanceSnapshot >= 0 ? 'text-white' : 'text-red-400'}`}>
-                      {formatCurrency(f.balanceSnapshot)}
+                    <td className={`px-6 py-4 text-right font-bold tabular-nums ${t.type === 'Out' ? 'text-green-400' : 'text-red-400'}`}>
+                      {t.type === 'Out' ? '+' : '-'}{formatCurrency(t.total)}
                     </td>
                   </tr>
                 ))}
@@ -158,10 +165,10 @@ export default function Reports() {
             </table>
           )}
 
-          {!finLoading && !error && finances.length === 0 && (
+          {!finLoading && !error && transactions.length === 0 && (
             <div className="p-12 text-center text-neutral-500">
               <Inbox className="w-12 h-12 mx-auto mb-3 opacity-30" />
-              <p>No financial records found.</p>
+              <p>No transaction history found for reports.</p>
             </div>
           )}
         </div>

@@ -6,6 +6,12 @@ import { Search, Plus, Tag, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2, 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
+type RawMaterial = {
+  name: string;
+  quantity: number;
+  requiredPerProduct: number;
+};
+
 type Product = {
   uuid: string;
   sku: string;
@@ -13,9 +19,11 @@ type Product = {
   category: string;
   buyPrice: number;
   salePrice: number;
-  quantity: number;
+  quantity: number; // Actual Finished Stock
+  potentialQuantity: number; // New: Potential to make
   minStock: number;
   status: string;
+  rawMaterials?: RawMaterial[];
 };
 
 const fetcher = async (url: string) => {
@@ -66,6 +74,8 @@ export default function Inventory() {
   const [pSale, setPSale] = useState('');
   const [pQty, setPQty] = useState('');
   const [pMin, setPMin] = useState('10');
+  const [pStatus, setPStatus] = useState('Active');
+  const [pRawMaterials, setPRawMaterials] = useState<RawMaterial[]>([]);
   const [pLoading, setPLoading] = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
@@ -77,6 +87,8 @@ export default function Inventory() {
     setProductModalMode('add');
     setPUuid(''); setPSku(''); setPName(''); setPCat('');
     setPBuy(''); setPSale(''); setPQty(''); setPMin('10');
+    setPStatus('Active');
+    setPRawMaterials([]);
     setIsProductModalOpen(true);
   };
 
@@ -85,6 +97,8 @@ export default function Inventory() {
     setPUuid(p.uuid); setPSku(p.sku); setPName(p.name); setPCat(p.category);
     setPBuy(String(p.buyPrice)); setPSale(String(p.salePrice));
     setPQty(String(p.quantity)); setPMin(String(p.minStock));
+    setPStatus(p.status);
+    setPRawMaterials(p.rawMaterials || []);
     setIsProductModalOpen(true);
   };
 
@@ -95,7 +109,9 @@ export default function Inventory() {
     const payload = {
       action: productModalMode === 'add' ? 'add_product' : 'update_product',
       productUuid: pUuid, sku: pSku, name: pName, category: pCat,
-      buyPrice: pBuy, salePrice: pSale, quantity: pQty, minStock: pMin,
+      buyPrice: pBuy, salePrice: pSale, quantity: 0, minStock: pMin,
+      status: pStatus,
+      rawMaterials: pRawMaterials,
     };
     try {
       const json = await postToAPI(payload);
@@ -131,6 +147,18 @@ export default function Inventory() {
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+
+  const potentialProduction = useMemo(() => {
+    if (!pRawMaterials || pRawMaterials.length === 0) return 0;
+    let minPossible = Infinity;
+    pRawMaterials.forEach(rm => {
+      if (rm.requiredPerProduct > 0) {
+        const possible = Math.floor(rm.quantity / rm.requiredPerProduct);
+        if (possible < minPossible) minPossible = possible;
+      }
+    });
+    return minPossible === Infinity ? 0 : minPossible;
+  }, [pRawMaterials]);
 
   const filteredProducts = products.filter((p) => {
     if (!searchTerm) return true;
@@ -197,8 +225,9 @@ export default function Inventory() {
                 <th className="px-6 py-4 font-bold w-24">SKU</th>
                 <th className="px-6 py-4 font-bold w-28">Buy Price</th>
                 <th className="px-6 py-4 font-bold w-28">Sale Price</th>
-                <th className="px-6 py-4 font-bold w-24 text-center">Stock</th>
-                <th className="px-6 py-4 font-bold text-center w-28">Status</th>
+                <th className="px-6 py-4 text-center">Actual Stock</th>
+                <th className="px-6 py-4 text-center">Potential</th>
+                <th className="px-6 py-4 text-center">Status</th>
                 <th className="px-6 py-4 font-bold text-center w-20">Actions</th>
               </tr>
             </thead>
@@ -212,23 +241,35 @@ export default function Inventory() {
                       </div>
                       <div>
                         <p className="font-bold text-white">{p.name}</p>
-                        <p className="text-xs text-neutral-500">{p.category}</p>
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-neutral-500">{p.category}</p>
+                          {p.rawMaterials && p.rawMaterials.length > 0 && (
+                            <span className="text-[10px] bg-neutral-800 text-neutral-400 px-1.5 py-0.5 rounded border border-neutral-700">
+                              {p.rawMaterials.length} Raw Materials
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-neutral-300 font-mono text-xs">{p.sku}</td>
                   <td className="px-6 py-4 text-neutral-400">{formatCurrency(p.buyPrice)}</td>
                   <td className="px-6 py-4 text-white font-medium">{formatCurrency(p.salePrice)}</td>
-                  <td className="px-6 py-4">
-                    <span className={`font-bold tabular-nums ${p.quantity === 0 ? 'text-red-400' : p.quantity <= p.minStock ? 'text-yellow-400' : 'text-white'}`}>
+                  <td className="px-6 py-4 text-center">
+                    <span className={`text-sm font-bold ${p.quantity <= p.minStock ? 'text-red-400' : 'text-white'}`}>
                       {p.quantity}
                     </span>
-                    <span className="text-neutral-600 text-xs ml-1">/ min {p.minStock}</span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <span className="text-xs text-neutral-500 font-mono">
+                      {p.potentialQuantity}
+                    </span>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border ${
                       p.status === 'Low Stock' ? 'bg-yellow-950/30 text-yellow-400 border-yellow-900' :
                       p.status === 'Out of Stock' ? 'bg-red-950/30 text-red-400 border-red-900' :
+                      p.status === 'Inactive' || p.status === 'Discontinued' ? 'bg-neutral-800 text-neutral-500 border-neutral-700' :
                       'bg-white/10 text-white border-white/20'
                     }`}>
                       {p.status}
@@ -296,6 +337,19 @@ export default function Inventory() {
                 <label className="block text-sm font-bold text-neutral-400 mb-1.5">Product Name <span className="text-red-400">*</span></label>
                 <input required type="text" value={pName} onChange={(e) => setPName(e.target.value)} className={inputClass} placeholder="e.g. Blue Abaya" />
               </div>
+              <div>
+                <label className="block text-sm font-bold text-neutral-400 mb-1.5">Product Status</label>
+                <select 
+                  value={pStatus} 
+                  onChange={(e) => setPStatus(e.target.value)} 
+                  className={inputClass}
+                >
+                  <option value="Active">Active (Auto-Stock)</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Discontinued">Discontinued</option>
+                  <option value="Archived">Archived</option>
+                </select>
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Buy Price (PKR) <span className="text-red-400">*</span></label>
@@ -308,22 +362,106 @@ export default function Inventory() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">
-                    Initial Qty {productModalMode === 'edit' && <span className="text-neutral-600 font-normal">(locked)</span>}
-                  </label>
-                  <input
-                    required type="number" min="0"
-                    value={pQty} onChange={(e) => setPQty(e.target.value)}
-                    disabled={productModalMode === 'edit'}
-                    className={`${inputClass} ${productModalMode === 'edit' ? 'opacity-40 cursor-not-allowed' : ''}`}
-                    placeholder="0"
-                  />
-                  {productModalMode === 'edit' && <p className="text-[11px] text-neutral-600 mt-1">Use New Sale to adjust stock.</p>}
-                </div>
-                <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Min Stock Alert</label>
                   <input required type="number" min="0" value={pMin} onChange={(e) => setPMin(e.target.value)} className={inputClass} placeholder="10" />
                 </div>
+                <div className="flex flex-col justify-end pb-1">
+                  <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 flex items-center justify-between">
+                    <span className="text-xs text-neutral-400 font-bold uppercase tracking-wider">Potential Production</span>
+                    <span className={`text-lg font-bold ${potentialProduction === 0 ? 'text-red-400' : 'text-white'}`}>
+                      {potentialProduction}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Raw Materials Section */}
+              <div className="space-y-4 pt-2 border-t border-base-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-bold text-white">Raw Materials Composition</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setPRawMaterials([...pRawMaterials, { name: '', quantity: 0, requiredPerProduct: 0 }])}
+                    className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2.5 py-1.5 rounded-lg border border-neutral-700 flex items-center gap-1.5 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" /> Add Material
+                  </button>
+                </div>
+                
+                {pRawMaterials.length > 0 ? (
+                  <div className="space-y-3">
+                    {pRawMaterials.map((rm, idx) => (
+                      <div key={idx} className="bg-base-900/50 border border-base-800 p-3 rounded-xl space-y-3 relative group/rm">
+                        <div className="grid grid-cols-12 gap-3">
+                          <div className="col-span-6">
+                            <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Material Name</label>
+                            <input 
+                              required 
+                              type="text" 
+                              value={rm.name} 
+                              onChange={(e) => {
+                                const newRM = [...pRawMaterials];
+                                newRM[idx].name = e.target.value;
+                                setPRawMaterials(newRM);
+                              }}
+                              className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
+                              placeholder="e.g. Fabric" 
+                            />
+                          </div>
+                          <div className="col-span-3">
+                            <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Current Stock</label>
+                            <input 
+                              required 
+                              type="number" 
+                              min="0"
+                              step="0.01"
+                              value={rm.quantity} 
+                              onChange={(e) => {
+                                const newRM = [...pRawMaterials];
+                                newRM[idx].quantity = Number(e.target.value);
+                                setPRawMaterials(newRM);
+                              }}
+                              className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
+                              placeholder="0" 
+                            />
+                          </div>
+                          <div className="col-span-3 text-right">
+                             <button 
+                              type="button" 
+                              onClick={() => setPRawMaterials(pRawMaterials.filter((_, i) => i !== idx))}
+                              className="text-neutral-500 hover:text-red-400 transition-colors mt-6"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1">
+                            <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Required per Product</label>
+                            <input 
+                              required 
+                              type="number" 
+                              min="0"
+                              step="0.01"
+                              value={rm.requiredPerProduct} 
+                              onChange={(e) => {
+                                const newRM = [...pRawMaterials];
+                                newRM[idx].requiredPerProduct = Number(e.target.value);
+                                setPRawMaterials(newRM);
+                              }}
+                              className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
+                              placeholder="0.00" 
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 border-2 border-dashed border-base-900 rounded-xl">
+                    <p className="text-xs text-neutral-500">No raw materials added yet.</p>
+                  </div>
+                )}
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsProductModalOpen(false)} className="flex-1 bg-base-900 hover:bg-base-800 text-white py-2.5 rounded-lg font-bold transition-colors border border-base-800">

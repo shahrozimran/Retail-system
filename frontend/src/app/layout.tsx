@@ -1,24 +1,31 @@
-import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
-import './globals.css'
+'use client';
 
-const inter = Inter({ subsets: ['latin'] })
+import { Inter } from 'next/font/google';
+import { SWRConfig } from 'swr';
+import './globals.css';
 
-export const metadata: Metadata = {
-  title: 'Unified Management System',
-  description: 'Manage inventory, transactions, and finances.',
-}
+const inter = Inter({ subsets: ['latin'] });
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <body className={`${inter.className} bg-base-950 text-white antialiased min-h-screen`} suppressHydrationWarning>
-        {children}
+        <SWRConfig 
+          value={{
+            revalidateOnFocus: false,
+            revalidateOnReconnect: true,
+            refreshInterval: 60000, // Refresh every 1 minute
+            dedupingInterval: 10000, // Dedup requests within 10 seconds
+            shouldRetryOnError: false
+          }}
+        >
+          {children}
+        </SWRConfig>
       </body>
     </html>
-  )
+  );
 }

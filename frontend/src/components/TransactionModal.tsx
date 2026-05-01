@@ -13,14 +13,22 @@ type Product = {
   sku: string;
   name: string;
   quantity: number;
+  potentialQuantity?: number;
   buyPrice: number;
   salePrice: number;
+};
+
+type Customer = {
+  uuid: string;
+  name: string;
+  balance: number;
+  phone: string;
 };
 
 type LineItem = {
   id: number;
   productUuid: string;
-  searchQuery: string; // Temporary search text
+  searchQuery: string;
   type: 'Out' | 'In';
   qtyChange: string;
   unitPrice: string;
@@ -46,46 +54,75 @@ export default function TransactionModal({
     isOpen && API_URL ? `${API_URL}?action=dashboard` : null,
     fetcher
   );
+
+  const { data: customersRes } = useSWR(
+    isOpen && API_URL ? `${API_URL}?action=customers` : null,
+    fetcher
+  );
   
   const products: Product[] = useMemo(() => 
     Array.isArray(dashboardRes?.data?.products) ? dashboardRes.data.products : []
   , [dashboardRes]);
 
+  const customers: Customer[] = useMemo(() => 
+    Array.isArray(customersRes?.data) ? customersRes.data : []
+  , [customersRes]);
+
   const [items, setItems] = useState<LineItem[]>([]);
+  const [customerUuid, setCustomerUuid] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [buyerName, setBuyerName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [nextId, setNextId] = useState(1);
 
-  // Reset when opened
+  const selectedCustomer = useMemo(() => 
+    customers.find(c => c.uuid === customerUuid)
+  , [customers, customerUuid]);
+
   useEffect(() => {
     if (isOpen) {
       setItems([makeItem(1)]);
       setNextId(2);
       setBuyerName('');
+      setCustomerUuid('');
+      setCustomerSearch('');
       setDescription('');
       setError('');
     }
   }, [isOpen]);
 
+  useEffect(() => {
+    const query = customerSearch.toLowerCase();
+    const matched = customers.find(c => 
+      c.name.toLowerCase() === query || 
+      `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query
+    );
+    if (matched) {
+      setCustomerUuid(matched.uuid);
+      setBuyerName(matched.name);
+    } else {
+      setCustomerUuid('');
+      setBuyerName(customerSearch);
+    }
+  }, [customerSearch, customers]);
+
   if (!isOpen) return null;
 
-  // Auto-fill price when product or type changes
   const updateItem = (id: number, changes: Partial<LineItem>) => {
     setItems((prev) =>
       prev.map((item) => {
         if (item.id !== id) return item;
         const updated = { ...item, ...changes };
 
-        // Handle searchable product selection via datalist/searchQuery
         if (changes.searchQuery !== undefined) {
-          // Check if the query matches exactly a product (sku or name)
-          const matched = products.find(p => 
-            p.name === updated.searchQuery || 
-            p.sku === updated.searchQuery ||
-            `[${p.sku}] ${p.name}` === updated.searchQuery
-          );
+          const query = updated.searchQuery.toLowerCase();
+          const matched = products.find(p => {
+            const pName = String(p.name || '').toLowerCase();
+            const pSku = String(p.sku || '').toLowerCase();
+            return pName === query || pSku === query || `[${p.sku}] ${p.name}`.toLowerCase() === query;
+          });
           if (matched) {
             updated.productUuid = matched.uuid;
             updated.unitPrice = updated.type === 'Out' ? String(matched.salePrice) : String(matched.buyPrice);
@@ -94,7 +131,6 @@ export default function TransactionModal({
           }
         }
 
-        // Auto-fill unit price when type changes
         if (changes.type !== undefined && updated.productUuid) {
           const p = products.find((pr) => pr.uuid === updated.productUuid);
           if (p) {
@@ -132,7 +168,6 @@ export default function TransactionModal({
     e.preventDefault();
     setError('');
 
-    // Validate all items have a product selected
     for (let i = 0; i < items.length; i++) {
       if (!items[i].productUuid) {
         setError(`Please select a valid product for item #${i + 1}. Use the dropdown to choose.`);
@@ -153,6 +188,7 @@ export default function TransactionModal({
     try {
       const payload = {
         action: 'batch_transaction',
+        customerUuid,
         buyerName,
         description,
         items: items.map((item) => ({
@@ -187,7 +223,6 @@ export default function TransactionModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full max-w-3xl bg-base-950 border border-base-800 rounded-2xl shadow-2xl z-10 mx-4 max-h-[92vh] flex flex-col">
-        {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-base-800 bg-base-900/50 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
@@ -212,9 +247,7 @@ export default function TransactionModal({
               </div>
             )}
 
-            {/* Line Items */}
             <div className="space-y-4">
-              {/* Column headers */}
               <div className="grid grid-cols-[1fr_90px_80px_110px_100px_32px] gap-3 px-1">
                 <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Search Product</span>
                 <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Type</span>
@@ -232,7 +265,6 @@ export default function TransactionModal({
                 return (
                   <div key={item.id} className="group/row">
                     <div className="grid grid-cols-[1fr_90px_80px_110px_100px_32px] gap-3 items-center">
-                      {/* Product Search */}
                       <div className="relative">
                         <input
                           required
@@ -252,7 +284,6 @@ export default function TransactionModal({
                         </datalist>
                       </div>
 
-                      {/* Type toggle */}
                       <select
                         value={item.type}
                         onChange={(e) => updateItem(item.id, { type: e.target.value as 'Out' | 'In' })}
@@ -262,7 +293,6 @@ export default function TransactionModal({
                         <option value="In">Stock In</option>
                       </select>
 
-                      {/* Qty */}
                       <input
                         required
                         type="number"
@@ -272,7 +302,6 @@ export default function TransactionModal({
                         className={`${inputClass} text-center`}
                       />
 
-                      {/* Unit Price */}
                       <div className="relative">
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">PKR</span>
                         <input
@@ -287,12 +316,10 @@ export default function TransactionModal({
                         />
                       </div>
 
-                      {/* Subtotal */}
                       <div className="text-right text-sm font-bold text-white tabular-nums">
                         {formatCurrency(subtotal)}
                       </div>
 
-                      {/* Remove */}
                       <button
                         type="button"
                         onClick={() => removeItem(item.id)}
@@ -303,16 +330,18 @@ export default function TransactionModal({
                       </button>
                     </div>
 
-                    {/* Meta info & warnings */}
                     <div className="flex justify-between items-center px-1 mt-1">
                       <div>
                         {stockWarning && (
                           <p className="text-[10px] text-yellow-400 font-bold flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" /> Warning: Only {prod!.quantity} units left
+                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" /> Warning: Insufficient stock ({prod.quantity} in stock)
                           </p>
                         )}
-                        {prod && !stockWarning && (
-                          <p className="text-[10px] text-neutral-500">Available: {prod.quantity} units</p>
+                        {prod && (
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-tight">Stock: <span className="text-neutral-300 font-mono">{prod.quantity}</span></p>
+                            <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-tight">Potential: <span className="text-green-500/70 font-mono">{prod.potentialQuantity || 0}</span></p>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -321,7 +350,6 @@ export default function TransactionModal({
               })}
             </div>
 
-            {/* Add item button */}
             <button
               type="button"
               onClick={addItem}
@@ -330,19 +358,35 @@ export default function TransactionModal({
               <Plus className="w-4 h-4" /> Add Another Product
             </button>
 
-            {/* Shared fields */}
             <div className="border-t border-base-800 pt-6 grid grid-cols-2 gap-6">
               <div>
                 <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">
-                  Client Name <span className="text-neutral-600 font-normal italic">(optional)</span>
+                  Customer / Buyer Name
                 </label>
-                <input
-                  type="text"
-                  value={buyerName}
-                  onChange={(e) => setBuyerName(e.target.value)}
-                  className={inputClass}
-                  placeholder="e.g. John Doe"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={customerSearch}
+                    onChange={(e) => setCustomerSearch(e.target.value)}
+                    className={`${inputClass} !pl-9`}
+                    placeholder="Search existing or type new..."
+                    list="customers-datalist"
+                  />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
+                  <datalist id="customers-datalist">
+                    {customers.map(c => (
+                      <option key={c.uuid} value={`[${c.phone || 'No Phone'}] ${c.name}`} />
+                    ))}
+                  </datalist>
+                </div>
+                {selectedCustomer && (
+                  <div className="mt-2 p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Current Balance:</span>
+                    <span className={`text-xs font-black ${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
+                      {formatCurrency(selectedCustomer.balance)}
+                    </span>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">
@@ -359,7 +403,6 @@ export default function TransactionModal({
             </div>
           </div>
 
-          {/* Footer */}
           <div className="p-6 border-t border-base-800 bg-base-900/50 rounded-b-2xl shrink-0">
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -367,8 +410,25 @@ export default function TransactionModal({
                 <p className="text-lg font-bold text-white">{items.length} Product{items.length !== 1 ? 's' : ''}</p>
               </div>
               <div className="text-right">
-                <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Grand Total</p>
-                <p className="text-3xl font-black text-white tabular-nums leading-none mt-1">{formatCurrency(grandTotal)}</p>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="flex items-center gap-4 text-xs text-neutral-500 font-bold uppercase tracking-widest">
+                    <span>Subtotal:</span>
+                    <span className="text-white tabular-nums">{formatCurrency(grandTotal)}</span>
+                  </div>
+                  {selectedCustomer && (
+                    <div className="flex items-center gap-4 text-xs text-neutral-500 font-bold uppercase tracking-widest">
+                      <span>Prev. Balance:</span>
+                      <span className={`${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-300'} tabular-nums`}>
+                        {formatCurrency(selectedCustomer.balance)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="h-px w-32 bg-base-800 my-1" />
+                  <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Grand Total</p>
+                  <p className="text-3xl font-black text-white tabular-nums leading-none mt-1">
+                    {formatCurrency(grandTotal + (selectedCustomer?.balance || 0))}
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex gap-4">

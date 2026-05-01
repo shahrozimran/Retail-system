@@ -1,7 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { X, FileText, Download, Loader2, Building2, User, Hash, Calendar, CheckSquare, Square } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { X, FileText, Download, Loader2, Building2, User, Hash, Calendar, CheckSquare, Square, Search } from 'lucide-react';
+import useSWR from 'swr';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const fetcher = async (url: string) => {
+  const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+  return res.json();
+};
+
+type Customer = {
+  uuid: string;
+  name: string;
+  balance: number;
+  phone: string;
+  email?: string;
+  address?: string;
+};
 
 type Transaction = {
   id: string;
@@ -41,10 +57,43 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const [companyPhone, setCompanyPhone] = useState('03114437441');
   
   const [clientName, setClientName] = useState('');
+  const [clientSearch, setClientSearch] = useState('');
+  const [clientUuid, setClientUuid] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [notes, setNotes] = useState('Thank you for your business!');
   const [taxRate, setTaxRate] = useState('0');
+
+  const { data: customersRes } = useSWR(
+    isOpen && API_URL ? `${API_URL}?action=customers` : null,
+    fetcher
+  );
+
+  const customers: Customer[] = React.useMemo(() => 
+    Array.isArray(customersRes?.data) ? customersRes.data : []
+  , [customersRes]);
+
+  const selectedCustomer = React.useMemo(() => 
+    customers.find(c => c.uuid === clientUuid)
+  , [customers, clientUuid]);
+
+  // Sync client name with search
+  useEffect(() => {
+    const query = clientSearch.toLowerCase();
+    const matched = customers.find(c => 
+      c.name.toLowerCase() === query || 
+      `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query
+    );
+    if (matched) {
+      setClientUuid(matched.uuid);
+      setClientName(matched.name);
+      if (matched.address) setClientAddress(matched.address);
+      if (matched.email) setClientEmail(matched.email);
+    } else {
+      setClientUuid('');
+      setClientName(clientSearch);
+    }
+  }, [clientSearch, customers]);
 
   // Filter & Selection states
   const [includeExpenses, setIncludeExpenses] = useState(false);
@@ -58,6 +107,11 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       setSelectedIds(new Set());
       setInvoiceNo(`INV-${Date.now().toString().slice(-6)}`);
       setIssueDate(new Date().toISOString().split('T')[0]);
+      setClientSearch('');
+      setClientUuid('');
+      setClientName('');
+      setClientAddress('');
+      setClientEmail('');
     }
   }, [isOpen]);
 
@@ -204,14 +258,23 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
 
       let ty = finalY;
       drawTotalRow('Subtotal', fmt(subtotal), ty);
+      
       if (Number(taxRate) > 0) {
-        ty += 7; drawTotalRow(`Tax (${taxRate}%)`, fmt(tax), ty);
-        doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); ty += 8;
-        drawTotalRow('TOTAL DUE', fmt(grandTotal), ty + 2, true, true);
-      } else {
-        doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); ty += 8;
-        drawTotalRow('TOTAL DUE', fmt(grandTotal), ty + 2, true, true);
+        ty += 7; 
+        drawTotalRow(`Tax (${taxRate}%)`, fmt(tax), ty);
       }
+
+      if (selectedCustomer) {
+        ty += 7;
+        const balanceType = selectedCustomer.balance >= 0 ? '(Receivable)' : '(Payable)';
+        drawTotalRow(`Prev. Balance ${balanceType}`, fmt(selectedCustomer.balance), ty);
+      }
+
+      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); 
+      ty += 8;
+      
+      const totalDue = subtotal + tax + (selectedCustomer?.balance || 0);
+      drawTotalRow('TOTAL DUE', fmt(totalDue), ty + 2, true, true);
 
       if (notes) {
         const notesY = Math.max(ty + 20, finalY + 40);
@@ -348,7 +411,31 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
               {/* Client Info */}
               <div className="space-y-3">
                 <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Client (Bill To)</p>
-                <input required type="text" value={clientName} onChange={(e) => setClientName(e.target.value)} className={inputClass} placeholder="Client Name (Required)" />
+                <div className="relative">
+                  <input
+                    required
+                    type="text"
+                    value={clientSearch}
+                    onChange={(e) => setClientSearch(e.target.value)}
+                    className={`${inputClass} !pl-9`}
+                    placeholder="Search existing or type new name..."
+                    list="invoice-customers-datalist"
+                  />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                  <datalist id="invoice-customers-datalist">
+                    {customers.map(c => (
+                      <option key={c.uuid} value={`[${c.phone || 'No Phone'}] ${c.name}`} />
+                    ))}
+                  </datalist>
+                </div>
+                {selectedCustomer && (
+                  <div className="mt-2 p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Previous Balance:</span>
+                    <span className={`text-xs font-black ${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
+                      {fmt(selectedCustomer.balance)}
+                    </span>
+                  </div>
+                )}
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className={inputClass} placeholder="Client Address (Optional)" />
                 <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className={inputClass} placeholder="Client Email (Optional)" />
               </div>
@@ -368,8 +455,21 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                   <p className="text-zinc-400 font-medium">{fmt(subtotal)}</p>
                 </div>
                 <div className="text-right">
+                  {selectedCustomer && (
+                    <div className="flex flex-col items-end gap-0.5 mb-1 text-[10px]">
+                       <div className="flex gap-3 text-zinc-500">
+                         <span>Subtotal:</span>
+                         <span className="text-zinc-400 font-mono">{fmt(subtotal)}</span>
+                       </div>
+                       <div className="flex gap-3 text-zinc-500">
+                         <span>Balance:</span>
+                         <span className={`${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-zinc-400'} font-mono`}>{fmt(selectedCustomer.balance)}</span>
+                       </div>
+                       <div className="w-16 h-px bg-zinc-800 my-0.5" />
+                    </div>
+                  )}
                   <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Total Due</p>
-                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(grandTotal)}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(subtotal + tax + (selectedCustomer?.balance || 0))}</p>
                 </div>
               </div>
               <div className="flex gap-3">

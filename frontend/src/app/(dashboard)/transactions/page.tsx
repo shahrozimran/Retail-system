@@ -394,7 +394,7 @@ export default function Transactions() {
                 <input type="text" value={eDesc} onChange={(e) => setEDesc(e.target.value)} className={inputClass} placeholder="Optional note" />
               </div>
               <div className="p-3 bg-yellow-950/20 border border-yellow-900/50 rounded-lg">
-                <p className="text-xs text-yellow-400">Note: Editing updates the record only. Stock levels are not recalculated.</p>
+                <p className="text-xs text-green-400">Note: Saving changes will automatically recalculate stock levels.</p>
               </div>
               <div className="flex gap-3">
                 <button type="button" onClick={() => setEditTx(null)} className="flex-1 bg-base-900 hover:bg-base-800 text-white py-2.5 rounded-lg font-bold border border-base-800">Cancel</button>
