@@ -300,8 +300,8 @@ export default function Production() {
         </div>
 
         {/* History Table */}
-        <div className="lg:col-span-7">
-          <div className="bg-base-950 border border-base-800 rounded-2xl overflow-hidden shadow-xl h-full flex flex-col">
+        <div className="lg:col-span-7 space-y-6">
+          <div className="bg-base-950 border border-base-800 rounded-2xl overflow-hidden shadow-xl h-[400px] flex flex-col">
             <div className="p-5 border-b border-base-800 bg-base-900/50 flex items-center justify-between">
               <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase tracking-wider text-neutral-400">
                 <History className="w-4 h-4" /> Production History
@@ -363,6 +363,25 @@ export default function Production() {
               </table>
             </div>
           </div>
+
+          <div className="bg-base-950 border border-base-800 rounded-2xl overflow-hidden shadow-xl flex flex-col">
+            <div className="p-5 border-b border-base-800 bg-base-900/50 flex items-center justify-between">
+              <h3 className="font-bold text-white flex items-center gap-2 text-sm uppercase tracking-wider text-neutral-400">
+                <Layers className="w-4 h-4" /> Current Stock Overview
+              </h3>
+            </div>
+            <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
+              {products.slice(0, 8).map((p) => (
+                <div key={p.uuid} className="p-3 bg-base-900/40 border border-base-800 rounded-xl space-y-1">
+                  <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-widest truncate">{p.name}</p>
+                  <div className="flex items-end justify-between">
+                    <p className="text-xl font-black text-white leading-none">{p.quantity}</p>
+                    <p className="text-[10px] text-neutral-600 font-mono">{p.sku}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -383,11 +402,11 @@ export default function Production() {
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <label className="text-[10px] uppercase tracking-widest font-bold text-neutral-500 mb-1 block">Product</label>
-                  <p className="text-lg font-bold text-white">{selectedRecord.productName}</p>
+                  <p className="text-lg font-bold text-white">{selectedRecord?.productName}</p>
                 </div>
                 <div className="text-right">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-neutral-500 mb-1 block">Date</label>
-                  <p className="text-sm text-neutral-300">{formatDate(selectedRecord.date)}</p>
+                  <p className="text-sm text-neutral-300">{selectedRecord ? formatDate(selectedRecord.date) : ''}</p>
                 </div>
               </div>
 
@@ -395,7 +414,7 @@ export default function Production() {
                 <div className="pb-4">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-neutral-500 mb-3 block">Raw Materials Consumed</label>
                   <div className="space-y-3">
-                    {selectedRecord.rawMaterialsUsed.map((rm, i) => (
+                    {selectedRecord?.rawMaterialsUsed.map((rm, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <div className="w-1.5 h-1.5 rounded-full bg-neutral-600" />
@@ -409,15 +428,17 @@ export default function Production() {
                 <div className="pt-4 space-y-3">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-neutral-500">Production Qty</span>
-                    <span className="text-white font-bold">{selectedRecord.qtyProduced} units</span>
+                    <span className="text-white font-bold">{selectedRecord?.qtyProduced} units</span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-neutral-500">Unit Cost (BOM)</span>
-                    <span className="text-white font-bold">{formatCurrency(selectedRecord.costPerUnit)}</span>
+                    <span className="text-white font-bold">{selectedRecord ? formatCurrency(selectedRecord.costPerUnit) : ''}</span>
                   </div>
                   <div className="flex items-center justify-between pt-2">
                     <span className="text-sm font-bold text-white">Total Production Cost</span>
-                    <span className="text-xl font-bold text-white">{formatCurrency(selectedRecord.qtyProduced * selectedRecord.costPerUnit)}</span>
+                    <span className="text-xl font-bold text-white">
+                      {selectedRecord ? formatCurrency(selectedRecord.qtyProduced * selectedRecord.costPerUnit) : ''}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -425,12 +446,14 @@ export default function Production() {
               <div className="bg-neutral-900 border border-neutral-800 rounded-xl p-4 flex items-center justify-between">
                 <div>
                   <label className="text-[10px] uppercase tracking-widest font-bold text-neutral-500 mb-1 block">Est. Sales Value</label>
-                  <p className="text-lg font-bold text-white">{formatCurrency(selectedRecord.qtyProduced * selectedRecord.salePerUnit)}</p>
+                  <p className="text-lg font-bold text-white">
+                    {selectedRecord ? formatCurrency(selectedRecord.qtyProduced * selectedRecord.salePerUnit) : ''}
+                  </p>
                 </div>
                 <div className="text-right">
                   <label className="text-[10px] uppercase tracking-widest font-bold text-green-500/50 mb-1 block">Est. Profit Margin</label>
                   <p className="text-lg font-bold text-green-400">
-                    {formatCurrency((selectedRecord.salePerUnit - selectedRecord.costPerUnit) * selectedRecord.qtyProduced)}
+                    {selectedRecord ? formatCurrency((selectedRecord.salePerUnit - selectedRecord.costPerUnit) * selectedRecord.qtyProduced) : ''}
                   </p>
                 </div>
               </div>
@@ -449,8 +472,9 @@ export default function Production() {
       )}
 
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border fade-in ${toast.type === 'success' ? 'bg-base-900 border-white/20 text-white' : 'bg-red-950/90 border-red-900 text-red-300'
-          }`}>
+        <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border fade-in ${
+          toast.type === 'success' ? 'bg-base-900 border-white/20 text-white' : 'bg-red-950/90 border-red-900 text-red-300'
+        }`}>
           {toast.type === 'success' ? <CheckCircle className="w-5 h-5 text-green-400 shrink-0" /> : <XCircle className="w-5 h-5 shrink-0" />}
           <p className="text-sm font-bold">{toast.msg}</p>
         </div>
