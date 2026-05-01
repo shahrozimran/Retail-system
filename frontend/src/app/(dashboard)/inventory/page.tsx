@@ -7,8 +7,9 @@ import { Search, Plus, Tag, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2, 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 type RawMaterial = {
+  uuid?: string; // New: UUID from global list
   name: string;
-  quantity: number;
+  quantity: number; // For legacy support or display
   requiredPerProduct: number;
 };
 
@@ -52,6 +53,13 @@ export default function Inventory() {
     fetcher,
     { shouldRetryOnError: false }
   );
+
+  const { data: rawResponse } = useSWR(
+    API_URL ? `${API_URL}?action=raw_materials` : null,
+    fetcher
+  );
+  
+  const globalRawMaterials: { uuid: string; name: string; stock: number }[] = Array.isArray(rawResponse?.data) ? rawResponse.data : [];
   
   // Safe extraction with Array check
   const products: Product[] = Array.isArray(response?.data?.products) ? response.data.products : [];
@@ -151,14 +159,19 @@ export default function Inventory() {
   const potentialProduction = useMemo(() => {
     if (!pRawMaterials || pRawMaterials.length === 0) return 0;
     let minPossible = Infinity;
+    
     pRawMaterials.forEach(rm => {
       if (rm.requiredPerProduct > 0) {
-        const possible = Math.floor(rm.quantity / rm.requiredPerProduct);
+        // Find current stock from global list if UUID exists
+        const globalRM = globalRawMaterials.find(g => g.uuid === rm.uuid);
+        const stock = globalRM ? globalRM.stock : (rm.quantity || 0);
+        
+        const possible = Math.floor(stock / rm.requiredPerProduct);
         if (possible < minPossible) minPossible = possible;
       }
     });
     return minPossible === Infinity ? 0 : minPossible;
-  }, [pRawMaterials]);
+  }, [pRawMaterials, globalRawMaterials]);
 
   const filteredProducts = products.filter((p) => {
     if (!searchTerm) return true;
@@ -384,7 +397,7 @@ export default function Inventory() {
                     onClick={() => setPRawMaterials([...pRawMaterials, { name: '', quantity: 0, requiredPerProduct: 0 }])}
                     className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2.5 py-1.5 rounded-lg border border-neutral-700 flex items-center gap-1.5 transition-colors"
                   >
-                    <Plus className="w-3 h-3" /> Add Material
+                    <Plus className="w-3 h-3" /> Select Material
                   </button>
                 </div>
                 
@@ -395,35 +408,30 @@ export default function Inventory() {
                         <div className="grid grid-cols-12 gap-3">
                           <div className="col-span-6">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Material Name</label>
-                            <input 
+                            <select 
                               required 
-                              type="text" 
-                              value={rm.name} 
+                              value={rm.uuid || ''} 
                               onChange={(e) => {
+                                const selected = globalRawMaterials.find(g => g.uuid === e.target.value);
                                 const newRM = [...pRawMaterials];
-                                newRM[idx].name = e.target.value;
+                                newRM[idx].uuid = selected?.uuid;
+                                newRM[idx].name = selected?.name || '';
+                                newRM[idx].quantity = selected?.stock || 0;
                                 setPRawMaterials(newRM);
                               }}
                               className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
-                              placeholder="e.g. Fabric" 
-                            />
+                            >
+                              <option value="">Select Material...</option>
+                              {globalRawMaterials.map(g => (
+                                <option key={g.uuid} value={g.uuid}>{g.name}</option>
+                              ))}
+                            </select>
                           </div>
                           <div className="col-span-3">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Current Stock</label>
-                            <input 
-                              required 
-                              type="number" 
-                              min="0"
-                              step="0.01"
-                              value={rm.quantity} 
-                              onChange={(e) => {
-                                const newRM = [...pRawMaterials];
-                                newRM[idx].quantity = Number(e.target.value);
-                                setPRawMaterials(newRM);
-                              }}
-                              className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
-                              placeholder="0" 
-                            />
+                            <div className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white min-h-[38px] flex items-center">
+                              {rm.uuid ? (globalRawMaterials.find(g => g.uuid === rm.uuid)?.stock || 0) : rm.quantity}
+                            </div>
                           </div>
                           <div className="col-span-3 text-right">
                              <button 

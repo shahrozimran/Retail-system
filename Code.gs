@@ -4,6 +4,7 @@ const FINANCES_SHEET = 'Finances';
 const PRODUCTIONS_SHEET = 'Productions';
 const CUSTOMERS_SHEET = 'Customers';
 const CUSTOMER_LEDGER_SHEET = 'CustomerLedger';
+const RAW_MATERIALS_SHEET = 'RawMaterials';
 const SPREADSHEET_ID = ''; 
 
 function getSS() {
@@ -91,6 +92,18 @@ function setupDatabase() {
     ss.getSheetByName(CUSTOMER_LEDGER_SHEET).appendRow(['ID', 'Date', 'Customer_UUID', 'Type', 'Amount', 'Description', 'Balance_Snapshot']);
   }
 
+  // 6. Raw Materials Sheet
+  const rawHeaders = ['UUID', 'Name', 'Stock'];
+  let rawSheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+  if (!rawSheet) {
+    rawSheet = ss.insertSheet(RAW_MATERIALS_SHEET);
+    rawSheet.appendRow(rawHeaders);
+    rawSheet.getRange(1, 1, 1, rawHeaders.length).setFontWeight('bold').setBackground('#f3f3f3');
+    rawSheet.setFrozenRows(1);
+  } else {
+    rawSheet.getRange(1, 1, 1, rawHeaders.length).setValues([rawHeaders]);
+  }
+
   console.log("Database setup/repair complete. Headers updated.");
 }
 
@@ -125,6 +138,8 @@ function doGet(e) {
       data = getCustomersData();
     } else if (action === 'customer_ledger') {
       data = getCustomerLedger(e.parameter.customerUuid);
+    } else if (action === 'raw_materials') {
+      data = getRawMaterialsData();
     } else {
       data = getDashboardData();
     }
@@ -180,6 +195,12 @@ function doPost(e) {
       result = recordCustomerPayment(payload);
     } else if (action === 'delete_customer') {
       result = deleteCustomer(payload);
+    } else if (action === 'add_raw_material') {
+      result = addRawMaterial(payload);
+    } else if (action === 'update_raw_material') {
+      result = updateRawMaterial(payload);
+    } else if (action === 'delete_raw_material') {
+      result = deleteRawMaterial(payload);
     } else {
       result = processTransaction(payload);
     }
@@ -187,7 +208,7 @@ function doPost(e) {
     // Invalidate Cache after successful update
     if (result.success) {
       const cache = CacheService.getScriptCache();
-      cache.removeAll(['UMS_CACHE_dashboard', 'UMS_CACHE_transactions', 'UMS_CACHE_reports', 'UMS_CACHE_productions']);
+      cache.removeAll(['UMS_CACHE_dashboard', 'UMS_CACHE_transactions', 'UMS_CACHE_reports', 'UMS_CACHE_productions', 'UMS_CACHE_raw_materials']);
     }
     
     return createJsonResponse(result);
@@ -322,6 +343,16 @@ function getDashboardData() {
     };
   }
 
+  // Fetch Raw Materials Stock Map
+  const rawSheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+  const rawMap = {};
+  if (rawSheet) {
+    const rawData = rawSheet.getDataRange().getValues();
+    for (let i = 1; i < rawData.length; i++) {
+      rawMap[rawData[i][0]] = Number(rawData[i][2] || 0); // uuid -> stock
+    }
+  }
+
   const products = [];
   let totalInventoryValue = 0;
   let activeAlerts = 0;
@@ -336,7 +367,9 @@ function getDashboardData() {
       let minPossible = Infinity;
       rawMaterials.forEach(rm => {
         if (rm.requiredPerProduct > 0) {
-          const possible = Math.floor(rm.quantity / rm.requiredPerProduct);
+          // If we have a UUID (new system), look up from map. Otherwise use stored quantity (legacy)
+          const stock = rm.uuid ? (rawMap[rm.uuid] || 0) : (Number(rm.quantity) || 0);
+          const possible = Math.floor(stock / rm.requiredPerProduct);
           if (possible < minPossible) minPossible = possible;
         }
       });
@@ -941,19 +974,50 @@ function processProduction(data) {
     
     if (qtyToProduce <= 0) throw new Error("Quantity must be greater than zero.");
 
-    // Validate availability and track usage
+    // Fetch Global Raw Materials
+    const rawSheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+    const rawData = rawSheet.getDataRange().getValues();
+    const rawHeaders = rawData[0];
+    const rawUuidIdx = 0; // UUID is col 1
+    const rawStockIdx = 2; // Stock is col 3
+
+    // Validate availability
     const materialsUsed = [];
-    const updatedRawMaterials = rawMaterials.map(rm => {
+    const rawUpdates = []; // { rowIndex, newStock }
+
+    for (const rm of rawMaterials) {
       const needed = rm.requiredPerProduct * qtyToProduce;
-      if (rm.quantity < needed) {
-        throw new Error(`Insufficient ${rm.name}. Available: ${rm.quantity}, Needed: ${needed}`);
+      
+      if (rm.uuid) {
+        // New system: Find in global sheet
+        let found = false;
+        for (let i = 1; i < rawData.length; i++) {
+          if (rawData[i][rawUuidIdx] === rm.uuid) {
+            const currentStock = Number(rawData[i][rawStockIdx] || 0);
+            if (currentStock < needed) {
+              throw new Error(`Insufficient ${rawData[i][1]}. Available: ${currentStock}, Needed: ${needed}`);
+            }
+            materialsUsed.push({ name: rawData[i][1], qtyUsed: needed, uuid: rm.uuid });
+            rawUpdates.push({ rowIndex: i + 1, newStock: currentStock - needed });
+            found = true;
+            break;
+          }
+        }
+        if (!found) throw new Error(`Raw material with UUID ${rm.uuid} not found in database.`);
+      } else {
+        // Legacy system: Handled within product JSON (optional migration path)
+        if (rm.quantity < needed) {
+          throw new Error(`Insufficient ${rm.name}. Available: ${rm.quantity}, Needed: ${needed}`);
+        }
+        materialsUsed.push({ name: rm.name, qtyUsed: needed });
+        rm.quantity -= needed; // Deduct from local JSON
       }
-      materialsUsed.push({ name: rm.name, qtyUsed: needed });
-      return {
-        ...rm,
-        quantity: rm.quantity - needed
-      };
-    });
+    }
+
+    // Apply Global Stock Updates
+    for (const update of rawUpdates) {
+      rawSheet.getRange(update.rowIndex, rawStockIdx + 1).setValue(update.newStock);
+    }
 
     // Update finished goods qty and status
     const currentFinishedQty = Number(productRow[qtyIdx]);
@@ -964,7 +1028,7 @@ function processProduction(data) {
     else if (newFinishedQty <= minStock) newStatus = 'Low Stock';
 
     // Update pData array in memory
-    pData[productRowIndex - 1][rawIdx] = JSON.stringify(updatedRawMaterials);
+    pData[productRowIndex - 1][rawIdx] = JSON.stringify(rawMaterials); // Stores updated legacy or unchanged new composition
     pData[productRowIndex - 1][qtyIdx] = newFinishedQty;
     pData[productRowIndex - 1][statusIdx] = newStatus;
 
@@ -1145,4 +1209,93 @@ function deleteCustomer(data) {
     return { success: true, message: "Customer deleted." };
   }
   return { success: false, message: "Customer not found." };
+}
+
+// --- RAW MATERIALS FUNCTIONS ---
+
+function getRawMaterialsData() {
+  const ss = getSS();
+  const sheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+  if (!sheet) return [];
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) return [];
+
+  const rawMaterials = [];
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    rawMaterials.push({
+      uuid: row[0],
+      name: row[1],
+      stock: Number(row[2] || 0)
+    });
+  }
+  return rawMaterials;
+}
+
+function addRawMaterial(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = getSS();
+    let sheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+    if (!sheet) {
+      setupDatabase();
+      sheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+    }
+    const uuid = Utilities.getUuid();
+    sheet.appendRow([
+      uuid,
+      data.name,
+      Number(data.stock || 0)
+    ]);
+    return { success: true, message: "Raw material added successfully.", uuid: uuid };
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateRawMaterial(data) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ss = getSS();
+    const sheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+    const rows = sheet.getDataRange().getValues();
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0] === data.uuid) {
+        rowIndex = i + 1;
+        break;
+      }
+    }
+    if (rowIndex === -1) throw new Error("Raw material not found.");
+
+    sheet.getRange(rowIndex, 2).setValue(data.name);
+    sheet.getRange(rowIndex, 3).setValue(Number(data.stock));
+    return { success: true, message: "Raw material updated successfully." };
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteRawMaterial(data) {
+  const ss = getSS();
+  const sheet = ss.getSheetByName(RAW_MATERIALS_SHEET);
+  const rows = sheet.getDataRange().getValues();
+  let rowIndex = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === data.uuid) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+  if (rowIndex !== -1) {
+    sheet.deleteRow(rowIndex);
+    return { success: true, message: "Raw material deleted." };
+  }
+  return { success: false, message: "Raw material not found." };
 }

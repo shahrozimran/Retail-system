@@ -379,14 +379,6 @@ export default function TransactionModal({
                     ))}
                   </datalist>
                 </div>
-                {selectedCustomer && (
-                  <div className="mt-2 p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Current Balance:</span>
-                    <span className={`text-xs font-black ${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
-                      {formatCurrency(selectedCustomer.balance)}
-                    </span>
-                  </div>
-                )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">
@@ -415,18 +407,10 @@ export default function TransactionModal({
                     <span>Subtotal:</span>
                     <span className="text-white tabular-nums">{formatCurrency(grandTotal)}</span>
                   </div>
-                  {selectedCustomer && (
-                    <div className="flex items-center gap-4 text-xs text-neutral-500 font-bold uppercase tracking-widest">
-                      <span>Prev. Balance:</span>
-                      <span className={`${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-300'} tabular-nums`}>
-                        {formatCurrency(selectedCustomer.balance)}
-                      </span>
-                    </div>
-                  )}
                   <div className="h-px w-32 bg-base-800 my-1" />
                   <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Grand Total</p>
                   <p className="text-3xl font-black text-white tabular-nums leading-none mt-1">
-                    {formatCurrency(grandTotal + (selectedCustomer?.balance || 0))}
+                    {formatCurrency(grandTotal)}
                   </p>
                 </div>
               </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, FileText, Download, Loader2, Building2, User, Hash, Calendar, CheckSquare, Square, Search } from 'lucide-react';
+import { X, FileText, Download, Loader2, Building2, User, Hash, Calendar, CheckSquare, Square, Search, Eye, EyeOff } from 'lucide-react';
 import useSWR from 'swr';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
@@ -63,6 +63,8 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const [clientEmail, setClientEmail] = useState('');
   const [notes, setNotes] = useState('Thank you for your business!');
   const [taxRate, setTaxRate] = useState('0');
+  const [includePreviousBalance, setIncludePreviousBalance] = useState(false);
+  const [showBalanceValue, setShowBalanceValue] = useState(false);
 
   const { data: customersRes } = useSWR(
     isOpen && API_URL ? `${API_URL}?action=customers` : null,
@@ -112,6 +114,8 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       setClientName('');
       setClientAddress('');
       setClientEmail('');
+      setIncludePreviousBalance(false);
+      setShowBalanceValue(false);
     }
   }, [isOpen]);
 
@@ -264,7 +268,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
         drawTotalRow(`Tax (${taxRate}%)`, fmt(tax), ty);
       }
 
-      if (selectedCustomer) {
+      if (selectedCustomer && includePreviousBalance) {
         ty += 7;
         const balanceType = selectedCustomer.balance >= 0 ? '(Receivable)' : '(Payable)';
         drawTotalRow(`Prev. Balance ${balanceType}`, fmt(selectedCustomer.balance), ty);
@@ -273,7 +277,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); 
       ty += 8;
       
-      const totalDue = subtotal + tax + (selectedCustomer?.balance || 0);
+      const totalDue = subtotal + tax + (includePreviousBalance ? (selectedCustomer?.balance || 0) : 0);
       drawTotalRow('TOTAL DUE', fmt(totalDue), ty + 2, true, true);
 
       if (notes) {
@@ -429,11 +433,35 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                   </datalist>
                 </div>
                 {selectedCustomer && (
-                  <div className="mt-2 p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Previous Balance:</span>
-                    <span className={`text-xs font-black ${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
-                      {fmt(selectedCustomer.balance)}
-                    </span>
+                  <div className="mt-2 space-y-2">
+                    <div className="p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between group/bal">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Previous Balance:</span>
+                        <button 
+                          type="button"
+                          onClick={() => setShowBalanceValue(!showBalanceValue)}
+                          className="p-1 text-blue-400/50 hover:text-blue-400 transition-colors"
+                          title={showBalanceValue ? "Hide Balance" : "Show Balance"}
+                        >
+                          {showBalanceValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
+                      <span className={`text-xs font-black transition-all ${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500') : 'text-blue-400/30'}`}>
+                        {showBalanceValue ? fmt(selectedCustomer.balance) : 'PKR ••••'}
+                      </span>
+                    </div>
+                    <label className="flex items-center gap-2 cursor-pointer select-none group">
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includePreviousBalance ? 'bg-white border-white' : 'bg-transparent border-zinc-700 group-hover:border-zinc-500'}`}>
+                        {includePreviousBalance && <CheckSquare className="w-3.5 h-3.5 text-black" />}
+                        <input 
+                          type="checkbox" 
+                          className="hidden" 
+                          checked={includePreviousBalance} 
+                          onChange={(e) => setIncludePreviousBalance(e.target.checked)} 
+                        />
+                      </div>
+                      <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-300 transition-colors uppercase tracking-tight">Include balance in invoice total</span>
+                    </label>
                   </div>
                 )}
                 <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className={inputClass} placeholder="Client Address (Optional)" />
@@ -461,15 +489,19 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                          <span>Subtotal:</span>
                          <span className="text-zinc-400 font-mono">{fmt(subtotal)}</span>
                        </div>
-                       <div className="flex gap-3 text-zinc-500">
-                         <span>Balance:</span>
-                         <span className={`${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-zinc-400'} font-mono`}>{fmt(selectedCustomer.balance)}</span>
-                       </div>
+                       {includePreviousBalance && (
+                         <div className="flex gap-3 text-zinc-500">
+                           <span>Balance:</span>
+                           <span className={`${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-zinc-400') : 'text-zinc-600'} font-mono`}>
+                             {showBalanceValue ? fmt(selectedCustomer.balance) : 'PKR ••••'}
+                           </span>
+                         </div>
+                       )}
                        <div className="w-16 h-px bg-zinc-800 my-0.5" />
                     </div>
                   )}
                   <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Total Due</p>
-                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(subtotal + tax + (selectedCustomer?.balance || 0))}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(subtotal + tax + (includePreviousBalance ? (selectedCustomer?.balance || 0) : 0))}</p>
                 </div>
               </div>
               <div className="flex gap-3">

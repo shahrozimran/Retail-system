@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Box, LayoutDashboard, Package, ArrowLeftRight, PieChart, X, Factory, Users } from 'lucide-react';
+import { Box, LayoutDashboard, Package, ArrowLeftRight, PieChart, X, Factory, Users, Hammer } from 'lucide-react';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -15,6 +15,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const links = [
     { href: '/', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/inventory', label: 'Inventory', icon: Package },
+    { href: '/raw-materials', label: 'Raw Materials', icon: Hammer },
     { href: '/production', label: 'Production', icon: Factory },
     { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
     { href: '/customers', label: 'Customers', icon: Users },
