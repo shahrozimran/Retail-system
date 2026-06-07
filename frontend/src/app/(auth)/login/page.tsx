@@ -20,7 +20,9 @@ export default function LoginPage() {
 
     // Mock authentication logic
     setTimeout(() => {
-      if (username === 'admin' && password === 'globalautoparts') {
+      const expectedUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'imran';
+      const expectedPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'imran';
+      if (username === expectedUsername && password === expectedPassword) {
         // Set a simple cookie
         document.cookie = "auth_token=true; path=/; max-age=86400; SameSite=Lax";
         router.push('/');

@@ -57,10 +57,9 @@ This system integrates a modern **Next.js 16 (React 19)** web frontend, a packag
 
 ## 🔐 Credentials & Security
 
-The application is protected with basic authentication. When accessing the system, use the following credentials:
+The application is protected with basic authentication. These credentials are configured via environment variables to keep them secure and out of version control.
 
-*   **Username**: `admin`
-*   **Password**: `globalautoparts`
+Configure `NEXT_PUBLIC_ADMIN_USERNAME` and `NEXT_PUBLIC_ADMIN_PASSWORD` in your `.env.local` file to define your administrative credentials.
 
 ---
 
@@ -104,8 +103,10 @@ Ensure you have the following installed on your machine:
 3.  Create a `.env.local` file inside the `frontend/` directory:
     ```env
     NEXT_PUBLIC_API_URL=YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL
+    NEXT_PUBLIC_ADMIN_USERNAME=YOUR_USERNAME
+    NEXT_PUBLIC_ADMIN_PASSWORD=YOUR_PASSWORD
     ```
-    *(Replace `YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL` with the URL copied from Step 1).*
+    *(Replace the placeholders with your actual Apps Script URL, desired admin username, and password).*
 4.  Run the local development server:
     ```bash
     npm run dev
