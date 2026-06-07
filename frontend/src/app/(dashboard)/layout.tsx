@@ -3,12 +3,16 @@
 import { useState } from 'react';
 import Sidebar from '@/components/Sidebar'
 import Header from '@/components/Header'
+import { useAuthGuard } from '@/hooks/useAuthGuard';
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
+  // Redirects to /login if auth_token cookie is absent (replaces middleware for static/Android build)
+  useAuthGuard();
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   return (

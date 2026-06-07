@@ -37,7 +37,7 @@ export default function LoginPage() {
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary-500/10 rounded-full blur-[120px] animate-pulse"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-500/10 rounded-full blur-[120px] animate-pulse" style={{ animationDelay: '2s' }}></div>
 
-      <div className="w-full max-w-md p-8 relative z-10">
+      <div className="w-full max-w-md px-4 py-8 sm:px-8 relative z-10">
         {/* Logo Section */}
         <div className="text-center mb-10">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-primary-500 to-accent-600 mb-4 shadow-lg shadow-primary-500/20">
@@ -48,7 +48,7 @@ export default function LoginPage() {
         </div>
 
         {/* Login Card */}
-        <div className="bg-base-900/40 backdrop-blur-xl border border-white/5 rounded-3xl p-8 shadow-2xl">
+        <div className="bg-base-900/40 backdrop-blur-xl border border-white/5 rounded-3xl p-6 sm:p-8 shadow-2xl">
           <form onSubmit={handleLogin} className="space-y-6">
             {error && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-3 rounded-xl text-sm animate-shake">

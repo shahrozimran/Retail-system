@@ -39,7 +39,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-base-950/50 backdrop-blur-sm border-b border-base-800 flex items-center justify-between px-6 z-10 sticky top-0">
+    <header className="min-h-16 bg-base-950/50 backdrop-blur-sm border-b border-base-800 flex items-center justify-between px-4 md:px-6 z-10 sticky top-0 safe-top">
       <div className="flex items-center lg:hidden">
         <button 
           onClick={onMenuClick}

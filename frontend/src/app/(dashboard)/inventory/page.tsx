@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { Search, Plus, Tag, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2, AlertTriangle } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type RawMaterial = {
   uuid?: string; // New: UUID from global list
@@ -34,7 +35,7 @@ const fetcher = async (url: string) => {
 };
 
 const postToAPI = async (payload: object) => {
-  const res = await fetch(API_URL, {
+  const res = await fetch(PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     redirect: 'follow',
@@ -49,13 +50,13 @@ const inputClass =
 
 export default function Inventory() {
   const { data: response, isLoading, error: fetchError, mutate } = useSWR(
-    API_URL ? `${API_URL}?action=dashboard` : null,
+    API_URL ? `${PROXY}?action=dashboard` : null,
     fetcher,
     { shouldRetryOnError: false }
   );
 
   const { data: rawResponse } = useSWR(
-    API_URL ? `${API_URL}?action=raw_materials` : null,
+    API_URL ? `${PROXY}?action=raw_materials` : null,
     fetcher
   );
   
@@ -406,7 +407,7 @@ export default function Inventory() {
                     {pRawMaterials.map((rm, idx) => (
                       <div key={idx} className="bg-base-900/50 border border-base-800 p-3 rounded-xl space-y-3 relative group/rm">
                         <div className="grid grid-cols-12 gap-3">
-                          <div className="col-span-6">
+                          <div className="col-span-12 sm:col-span-6">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Material Name</label>
                             <select 
                               required 
@@ -427,17 +428,17 @@ export default function Inventory() {
                               ))}
                             </select>
                           </div>
-                          <div className="col-span-3">
+                          <div className="col-span-9 sm:col-span-4">
                             <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Current Stock</label>
                             <div className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white min-h-[38px] flex items-center">
                               {rm.uuid ? (globalRawMaterials.find(g => g.uuid === rm.uuid)?.stock || 0) : rm.quantity}
                             </div>
                           </div>
-                          <div className="col-span-3 text-right">
+                          <div className="col-span-3 sm:col-span-2 text-right flex items-center justify-end">
                              <button 
                               type="button" 
                               onClick={() => setPRawMaterials(pRawMaterials.filter((_, i) => i !== idx))}
-                              className="text-neutral-500 hover:text-red-400 transition-colors mt-6"
+                              className="text-neutral-500 hover:text-red-400 transition-colors mt-4 sm:mt-6"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

@@ -3,6 +3,7 @@ import { ArrowLeftRight, X, Loader2, Plus, Trash2, Search } from 'lucide-react';
 import useSWR from 'swr';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 const fetcher = async (url: string) => {
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
   return res.json();
@@ -51,12 +52,12 @@ export default function TransactionModal({
   onSuccess: (msg: string) => void;
 }) {
   const { data: dashboardRes, isLoading: dataLoading } = useSWR(
-    isOpen && API_URL ? `${API_URL}?action=dashboard` : null,
+    isOpen && API_URL ? `${PROXY}?action=dashboard` : null,
     fetcher
   );
 
   const { data: customersRes } = useSWR(
-    isOpen && API_URL ? `${API_URL}?action=customers` : null,
+    isOpen && API_URL ? `${PROXY}?action=customers` : null,
     fetcher
   );
   
@@ -199,7 +200,7 @@ export default function TransactionModal({
         })),
       };
 
-      const res = await fetch(API_URL, {
+      const res = await fetch(PROXY, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         redirect: 'follow',

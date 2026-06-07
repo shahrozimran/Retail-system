@@ -1,0 +1,10 @@
+{
+  "appId": "com.globalautoparts.app",
+  "appName": "Global Auto Parts",
+  "webDir": "out",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

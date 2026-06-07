@@ -5,6 +5,7 @@ import { X, FileText, Download, Loader2, Building2, User, Hash, Calendar, CheckS
 import useSWR from 'swr';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 const fetcher = async (url: string) => {
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
   return res.json();
@@ -67,7 +68,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const [showBalanceValue, setShowBalanceValue] = useState(false);
 
   const { data: customersRes } = useSWR(
-    isOpen && API_URL ? `${API_URL}?action=customers` : null,
+    isOpen && API_URL ? `${PROXY}?action=customers` : null,
     fetcher
   );
 

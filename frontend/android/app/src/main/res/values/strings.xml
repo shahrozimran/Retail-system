@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Global Auto Parts</string>
+    <string name="title_activity_main">Global Auto Parts</string>
+    <string name="package_name">com.globalautoparts.app</string>
+    <string name="custom_url_scheme">com.globalautoparts.app</string>
+</resources>

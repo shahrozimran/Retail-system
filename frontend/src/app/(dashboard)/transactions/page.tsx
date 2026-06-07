@@ -6,6 +6,7 @@ import { Plus, Inbox, Loader2, Calendar, Edit, Trash2, CheckCircle, XCircle, Che
 import TransactionModal from '@/components/TransactionModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type Transaction = {
   id: string;
@@ -39,7 +40,7 @@ const fetcher = async (url: string) => {
 };
 
 const postToAPI = async (payload: object) => {
-  const res = await fetch(API_URL, {
+  const res = await fetch(PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     redirect: 'follow',
@@ -75,7 +76,7 @@ function groupByBatch(transactions: Transaction[]): BatchGroup[] {
 
 export default function Transactions() {
   const { data: response, error: swrError, isLoading, mutate } = useSWR(
-    API_URL ? API_URL + '?action=transactions' : null,
+    API_URL ? PROXY + '?action=transactions' : null,
     fetcher,
     { shouldRetryOnError: false }
   );

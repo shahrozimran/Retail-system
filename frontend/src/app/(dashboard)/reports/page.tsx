@@ -6,6 +6,7 @@ import { PieChart, Inbox, Loader2, Calendar, FileText, TrendingUp, TrendingDown,
 import InvoiceModal from '@/components/InvoiceModal';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type FinanceRecord = {
   date: string;
@@ -37,12 +38,12 @@ const fetcher = async (url: string) => {
 
 export default function Reports() {
   const { data: finResponse, error: finError, isLoading: finLoading } = useSWR(
-    API_URL ? `${API_URL}?action=reports` : null,
+    API_URL ? `${PROXY}?action=reports` : null,
     fetcher,
     { shouldRetryOnError: false }
   );
   const { data: txResponse } = useSWR(
-    API_URL ? `${API_URL}?action=transactions` : null,
+    API_URL ? `${PROXY}?action=transactions` : null,
     fetcher,
     { shouldRetryOnError: false }
   );
@@ -89,7 +90,7 @@ export default function Reports() {
 
       {/* Transaction Table */}
       <div className="bg-base-950 border border-base-800 rounded-xl overflow-hidden shadow-sm">
-        <div className="p-5 border-b border-base-800 flex items-center justify-between gap-4">
+        <div className="p-5 border-b border-base-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <PieChart className="w-5 h-5 text-neutral-500" />
             <div>

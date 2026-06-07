@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type RawMaterial = {
   name: string;
@@ -58,7 +59,7 @@ const fetcher = async (url: string) => {
 };
 
 const postToAPI = async (payload: object) => {
-  const res = await fetch(API_URL, {
+  const res = await fetch(PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     redirect: 'follow',
@@ -73,13 +74,13 @@ const inputClass = 'w-full bg-base-950 border border-base-800 rounded-lg px-4 py
 export default function Production() {
   // Fetch Products for selection
   const { data: dashboardData, isLoading: productsLoading, mutate: mutateInventory } = useSWR(
-    API_URL ? `${API_URL}?action=dashboard` : null,
+    API_URL ? `${PROXY}?action=dashboard` : null,
     fetcher
   );
 
   // Fetch Production History
   const { data: historyResponse, isLoading: historyLoading, mutate: mutateHistory } = useSWR(
-    API_URL ? `${API_URL}?action=productions` : null,
+    API_URL ? `${PROXY}?action=productions` : null,
     fetcher
   );
 

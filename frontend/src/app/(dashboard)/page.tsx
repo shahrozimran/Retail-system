@@ -9,6 +9,7 @@ import {
 import Link from 'next/link';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type Product = {
   id: string;
@@ -38,9 +39,9 @@ type DashboardStats = {
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
 export default function Dashboard() {
-  const { data: statsRes, isLoading: statsLoading } = useSWR(API_URL ? `${API_URL}?action=dashboard` : null, fetcher);
-  const { data: productsRes, isLoading: productsLoading } = useSWR(API_URL ? `${API_URL}?action=products` : null, fetcher);
-  const { data: txRes, isLoading: txLoading } = useSWR(API_URL ? `${API_URL}?action=transactions` : null, fetcher);
+  const { data: statsRes, isLoading: statsLoading } = useSWR(API_URL ? `${PROXY}?action=dashboard` : null, fetcher);
+  const { data: productsRes, isLoading: productsLoading } = useSWR(API_URL ? `${PROXY}?action=products` : null, fetcher);
+  const { data: txRes, isLoading: txLoading } = useSWR(API_URL ? `${PROXY}?action=transactions` : null, fetcher);
 
   const stats: DashboardStats | null = statsRes?.data || null;
   const products: Product[] = Array.isArray(productsRes?.data) ? productsRes.data : [];

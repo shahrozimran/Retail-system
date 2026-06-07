@@ -27,3 +27,52 @@
 
 .slide-up { animation: slideUp 0.3s ease-out; }
 @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+/* ── Mobile Native Reset ───────────────────────────────────────────────────── */
+
+/* Prevent tap highlight flash on all tappable elements */
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent horizontal scroll at the root level */
+html, body, #__next {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* iOS/Android momentum scroll */
+html, body {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Re-enable text selection inside form fields only */
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+/* ── Safe Area — Status Bar & Home Indicator ───────────────────────────────── */
+
+/* Utility class: add to the sticky header element */
+.safe-top {
+  padding-top: max(env(safe-area-inset-top), 0px);
+}
+
+@media (max-width: 1024px) {
+  /* Sidebar: account for Android status bar at top + home indicator at bottom */
+  aside {
+    padding-top: max(env(safe-area-inset-top), 0px);
+    padding-bottom: max(env(safe-area-inset-bottom), 24px) !important;
+  }
+
+  /* Sidebar drawer shadow when open on mobile */
+  aside.translate-x-0 {
+    box-shadow: 4px 0 40px rgba(0, 0, 0, 0.7);
+  }
+
+  /* Scrollable page content: ensure last items clear the home indicator */
+  .overflow-y-auto {
+    padding-bottom: max(env(safe-area-inset-bottom), 60px);
+  }
+}

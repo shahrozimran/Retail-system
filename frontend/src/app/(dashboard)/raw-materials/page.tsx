@@ -5,6 +5,7 @@ import useSWR from 'swr';
 import { Search, Plus, Hammer, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2, AlertTriangle } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type RawMaterial = {
   uuid: string;
@@ -19,7 +20,7 @@ const fetcher = async (url: string) => {
 };
 
 const postToAPI = async (payload: object) => {
-  const res = await fetch(API_URL, {
+  const res = await fetch(PROXY, {
     method: 'POST',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     redirect: 'follow',
@@ -34,7 +35,7 @@ const inputClass =
 
 export default function RawMaterials() {
   const { data: response, isLoading, error: fetchError, mutate } = useSWR(
-    API_URL ? `${API_URL}?action=raw_materials` : null,
+    API_URL ? `${PROXY}?action=raw_materials` : null,
     fetcher,
     { shouldRetryOnError: false }
   );

@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type Customer = {
   uuid: string;
@@ -35,7 +36,7 @@ const fetcher = async (url: string) => {
 };
 
 const postToAPI = async (payload: any) => {
-  const res = await fetch(API_URL, {
+  const res = await fetch(PROXY, {
     method: 'POST',
     redirect: 'follow',
     body: JSON.stringify(payload),
@@ -45,7 +46,7 @@ const postToAPI = async (payload: any) => {
 
 export default function CustomersPage() {
   const { data: custResponse, isLoading: custLoading } = useSWR(
-    API_URL ? `${API_URL}?action=customers` : null,
+    API_URL ? `${PROXY}?action=customers` : null,
     fetcher
   );
 
@@ -85,7 +86,7 @@ export default function CustomersPage() {
     try {
       const res = await postToAPI({ action: 'add_customer', name: newName, phone: newPhone });
       if (res.success) {
-        mutate(`${API_URL}?action=customers`);
+        mutate(`${PROXY}?action=customers`);
         setIsAddModalOpen(false);
         setNewName('');
         setNewPhone('');
@@ -113,8 +114,8 @@ export default function CustomersPage() {
         description: payDesc
       });
       if (res.success) {
-        mutate(`${API_URL}?action=customers`);
-        mutate(`${API_URL}?action=customer_ledger&customerUuid=${selectedCustomer.uuid}`);
+        mutate(`${PROXY}?action=customers`);
+        mutate(`${PROXY}?action=customer_ledger&customerUuid=${selectedCustomer.uuid}`);
         setIsPaymentModalOpen(false);
         setPayAmount('');
         setPayDesc('');
@@ -133,7 +134,7 @@ export default function CustomersPage() {
     if (!confirm('Are you sure you want to delete this customer?')) return;
     try {
       await postToAPI({ action: 'delete_customer', customerUuid: uuid });
-      mutate(`${API_URL}?action=customers`);
+      mutate(`${PROXY}?action=customers`);
     } catch (err) {
       console.error(err);
     }
@@ -460,7 +461,7 @@ export default function CustomersPage() {
 
 function LedgerList({ customerUuid, formatCurrency }: { customerUuid: string, formatCurrency: (v: number) => string }) {
   const { data: ledgerResponse, isLoading } = useSWR(
-    API_URL ? `${API_URL}?action=customer_ledger&customerUuid=${customerUuid}` : null,
+    API_URL ? `${PROXY}?action=customer_ledger&customerUuid=${customerUuid}` : null,
     fetcher
   );
 
