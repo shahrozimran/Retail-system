@@ -110,31 +110,87 @@ export default function Production() {
 
   const handleRecordProduction = async () => {
     if (!selectedProduct) return;
-    if (Number(qtyToProduce) <= 0) {
+    const qtyProducedNum = Number(qtyToProduce);
+    if (qtyProducedNum <= 0) {
       showToast("Please enter a valid quantity", "error");
       return;
     }
 
     setIsSubmitting(true);
-    try {
-      const json = await postToAPI({
-        action: 'process_production',
-        productUuid: selectedProduct.uuid,
-        qtyProduced: Number(qtyToProduce)
-      });
 
-      if (json.success) {
-        showToast("Production recorded and inventory updated!", "success");
-        setQtyToProduce('1');
-        setSelectedProduct(null);
-        setSearchTerm('');
-        mutateInventory();
-        mutateHistory();
-      } else {
-        showToast(json.message || "Failed to record production", "error");
+    const updatedProducts = products.map((p) => {
+      if (p.uuid === selectedProduct.uuid) {
+        return {
+          ...p,
+          quantity: p.quantity + qtyProducedNum,
+          potentialQuantity: Math.max(0, p.potentialQuantity - qtyProducedNum)
+        };
       }
-    } catch (err) {
-      showToast("Connection failed", "error");
+      return p;
+    });
+
+    const optimisticRecord: ProductionRecord = {
+      id: 'temp-' + Math.random().toString(),
+      date: new Date().toISOString(),
+      productUuid: selectedProduct.uuid,
+      productName: selectedProduct.name,
+      qtyProduced: qtyProducedNum,
+      rawMaterialsUsed: (selectedProduct.rawMaterials || []).map(rm => ({
+        name: rm.name,
+        qtyUsed: qtyProducedNum * rm.requiredPerProduct
+      })),
+      costPerUnit: selectedProduct.buyPrice,
+      salePerUnit: selectedProduct.salePrice
+    };
+
+    const updatePromise = postToAPI({
+      action: 'process_production',
+      productUuid: selectedProduct.uuid,
+      qtyProduced: qtyProducedNum
+    }).then(res => {
+      if (!res.success) throw new Error(res.message || "Failed to record production");
+      return res;
+    });
+
+    // Reset inputs
+    setQtyToProduce('1');
+    setSelectedProduct(null);
+    setSearchTerm('');
+
+    try {
+      // Mutate inventory (dashboard action)
+      const invPromise = mutateInventory(
+        updatePromise.then(() => undefined),
+        {
+          optimisticData: {
+            ...dashboardData,
+            data: {
+              ...dashboardData?.data,
+              products: updatedProducts
+            }
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+
+      // Mutate production history
+      const histPromise = mutateHistory(
+        updatePromise.then(() => undefined),
+        {
+          optimisticData: {
+            ...historyResponse,
+            data: [optimisticRecord, ...history]
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+
+      await Promise.all([invPromise, histPromise]);
+      showToast("Production recorded and inventory updated!", "success");
+    } catch (err: any) {
+      showToast(err.message || "Connection failed", "error");
     } finally {
       setIsSubmitting(false);
     }

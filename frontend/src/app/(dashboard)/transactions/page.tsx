@@ -131,25 +131,53 @@ export default function Transactions() {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editTx) return;
-    setEditLoading(true);
+
+    const qtyNum = Number(eQty);
+    const priceNum = Number(ePrice);
+
+    const updatedTransaction = {
+      ...editTx,
+      qtyChange: qtyNum,
+      unitPrice: priceNum,
+      total: qtyNum * priceNum,
+      description: eDesc,
+      buyerName: eBuyer
+    };
+
+    const updatePromise = postToAPI({
+      action: 'update_transaction',
+      transactionId: editTx.id,
+      qtyChange: eQty,
+      unitPrice: ePrice,
+      description: eDesc,
+      buyerName: eBuyer,
+    }).then(res => {
+      if (!res.success) throw new Error(res.message || 'Update failed');
+      return res;
+    });
+
+    setEditTx(null);
+
     try {
-      const json = await postToAPI({
-        action: 'update_transaction',
-        transactionId: editTx.id,
-        qtyChange: eQty,
-        unitPrice: ePrice,
-        description: eDesc,
-        buyerName: eBuyer,
-      });
-      if (json.success) {
-        showToast('Transaction updated!', 'success');
-        setEditTx(null);
-        mutate();
-      } else {
-        showToast(json.message || 'Update failed.', 'error');
-      }
-    } catch (err) {
-      showToast('Connection failed.', 'error');
+      await mutate(
+        updatePromise.then(() => {
+          return {
+            ...response,
+            data: transactions.map(t => t.id === editTx.id ? updatedTransaction : t)
+          };
+        }),
+        {
+          optimisticData: {
+            ...response,
+            data: transactions.map(t => t.id === editTx.id ? updatedTransaction : t)
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+      showToast('Transaction updated!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed.', 'error');
     } finally {
       setEditLoading(false);
     }
@@ -157,16 +185,33 @@ export default function Transactions() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this item from the transaction?')) return;
+
+    const updatePromise = postToAPI({ action: 'delete_transaction', transactionId: id }).then(res => {
+      if (!res.success) throw new Error(res.message || 'Delete failed');
+      return res;
+    });
+
     try {
-      const json = await postToAPI({ action: 'delete_transaction', transactionId: id });
-      if (json.success) {
-        showToast('Item deleted!', 'success');
-        mutate();
-      } else {
-        showToast(json.message || 'Delete failed.', 'error');
-      }
-    } catch (err) {
-      showToast('Connection failed.', 'error');
+      const updatedList = transactions.filter(t => t.id !== id);
+      await mutate(
+        updatePromise.then(() => {
+          return {
+            ...response,
+            data: updatedList
+          };
+        }),
+        {
+          optimisticData: {
+            ...response,
+            data: updatedList
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+      showToast('Item deleted!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed.', 'error');
     }
   };
 

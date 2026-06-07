@@ -45,7 +45,7 @@ const postToAPI = async (payload: any) => {
 };
 
 export default function CustomersPage() {
-  const { data: custResponse, isLoading: custLoading } = useSWR(
+  const { data: custResponse, isLoading: custLoading, mutate: mutateCustomers } = useSWR(
     API_URL ? `${PROXY}?action=customers` : null,
     fetcher
   );
@@ -83,19 +83,46 @@ export default function CustomersPage() {
     e.preventDefault();
     if (!newName) return;
     setIsSubmitting(true);
+
+    const newCustomerOptimistic: Customer = {
+      uuid: 'temp-' + Math.random().toString(),
+      name: newName,
+      phone: newPhone,
+      email: '',
+      balance: 0,
+      status: 'Active'
+    };
+
+    const updatePromise = postToAPI({ action: 'add_customer', name: newName, phone: newPhone })
+      .then(res => {
+        if (!res.success) throw new Error(res.message || 'Failed to add customer');
+        return res;
+      });
+
     try {
-      const res = await postToAPI({ action: 'add_customer', name: newName, phone: newPhone });
-      if (res.success) {
-        mutate(`${PROXY}?action=customers`);
-        setIsAddModalOpen(false);
-        setNewName('');
-        setNewPhone('');
-      } else {
-        alert("Error: " + res.message);
-      }
-    } catch (err) {
+      setIsAddModalOpen(false);
+      setNewName('');
+      setNewPhone('');
+
+      await mutateCustomers(
+        updatePromise.then(() => {
+          return {
+            ...custResponse,
+            data: [...customers, { ...newCustomerOptimistic, uuid: 'loading...' }]
+          };
+        }),
+        {
+          optimisticData: {
+            ...custResponse,
+            data: [...customers, newCustomerOptimistic]
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to connect to API.");
+      alert(err.message || "Failed to add customer.");
     } finally {
       setIsSubmitting(false);
     }
@@ -105,26 +132,86 @@ export default function CustomersPage() {
     e.preventDefault();
     if (!selectedCustomer || !payAmount) return;
     setIsSubmitting(true);
+
+    const amountNum = Number(payAmount);
+    const typeModifier = payType === 'Receivable' ? 1 : -1;
+    const balanceChange = amountNum * typeModifier;
+
+    const updatedCustomerOptimistic = {
+      ...selectedCustomer,
+      balance: selectedCustomer.balance + balanceChange
+    };
+
+    const updatePromise = postToAPI({ 
+      action: 'record_customer_payment', 
+      customerUuid: selectedCustomer.uuid,
+      amount: amountNum,
+      type: payType,
+      description: payDesc
+    }).then(res => {
+      if (!res.success) throw new Error(res.message || 'Failed to record payment');
+      return res;
+    });
+
     try {
-      const res = await postToAPI({ 
-        action: 'record_customer_payment', 
-        customerUuid: selectedCustomer.uuid,
-        amount: Number(payAmount),
+      setIsPaymentModalOpen(false);
+      setPayAmount('');
+      setPayDesc('');
+
+      const updatedCustomersData = customers.map(c => 
+        c.uuid === selectedCustomer.uuid ? updatedCustomerOptimistic : c
+      );
+
+      setSelectedCustomer(updatedCustomerOptimistic);
+
+      const ledgerKey = `${PROXY}?action=customer_ledger&customerUuid=${selectedCustomer.uuid}`;
+      const newLedgerEntry: LedgerEntry = {
+        id: 'temp-' + Math.random().toString(),
+        date: new Date().toISOString(),
         type: payType,
-        description: payDesc
-      });
-      if (res.success) {
-        mutate(`${PROXY}?action=customers`);
-        mutate(`${PROXY}?action=customer_ledger&customerUuid=${selectedCustomer.uuid}`);
-        setIsPaymentModalOpen(false);
-        setPayAmount('');
-        setPayDesc('');
-      } else {
-        alert("Error: " + res.message);
-      }
-    } catch (err) {
+        amount: amountNum,
+        description: payDesc || payType,
+        balanceSnapshot: selectedCustomer.balance + balanceChange
+      };
+
+      // Mutate ledger list cache optimistically
+      mutate(
+        ledgerKey,
+        updatePromise.then(() => undefined),
+        {
+          optimisticData: (currentRes: any) => {
+            const currentList = Array.isArray(currentRes?.data) ? currentRes.data : [];
+            return {
+              ...currentRes,
+              data: [newLedgerEntry, ...currentList]
+            };
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+
+      // Mutate customers list cache optimistically
+      await mutateCustomers(
+        updatePromise.then(() => {
+          return {
+            ...custResponse,
+            data: updatedCustomersData
+          };
+        }),
+        {
+          optimisticData: {
+            ...custResponse,
+            data: updatedCustomersData
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+    } catch (err: any) {
       console.error(err);
-      alert("Failed to connect to API.");
+      alert(err.message || "Failed to connect to API.");
+      setSelectedCustomer(selectedCustomer);
     } finally {
       setIsSubmitting(false);
     }
@@ -132,11 +219,33 @@ export default function CustomersPage() {
 
   const handleDeleteCustomer = async (uuid: string) => {
     if (!confirm('Are you sure you want to delete this customer?')) return;
+
+    const updatePromise = postToAPI({ action: 'delete_customer', customerUuid: uuid })
+      .then(res => {
+        if (!res.success) throw new Error(res.message || 'Failed to delete customer');
+        return res;
+      });
+
     try {
-      await postToAPI({ action: 'delete_customer', customerUuid: uuid });
-      mutate(`${PROXY}?action=customers`);
-    } catch (err) {
+      await mutateCustomers(
+        updatePromise.then(() => {
+          return {
+            ...custResponse,
+            data: customers.filter(c => c.uuid !== uuid)
+          };
+        }),
+        {
+          optimisticData: {
+            ...custResponse,
+            data: customers.filter(c => c.uuid !== uuid)
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+    } catch (err: any) {
       console.error(err);
+      alert(err.message || "Failed to delete customer.");
     }
   };
 

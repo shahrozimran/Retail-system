@@ -118,21 +118,87 @@ export default function Inventory() {
     const payload = {
       action: productModalMode === 'add' ? 'add_product' : 'update_product',
       productUuid: pUuid, sku: pSku, name: pName, category: pCat,
-      buyPrice: pBuy, salePrice: pSale, quantity: 0, minStock: pMin,
+      buyPrice: Number(pBuy), salePrice: Number(pSale), quantity: Number(pQty) || 0, minStock: Number(pMin),
       status: pStatus,
       rawMaterials: pRawMaterials,
     };
+
+    const tempUuid = pUuid || 'temp-' + Math.random().toString();
+    const newProduct: Product = {
+      uuid: tempUuid,
+      sku: pSku,
+      name: pName,
+      category: pCat,
+      buyPrice: Number(pBuy),
+      salePrice: Number(pSale),
+      quantity: Number(pQty) || 0,
+      potentialQuantity: potentialProduction,
+      minStock: Number(pMin),
+      status: pStatus,
+      rawMaterials: pRawMaterials
+    };
+
+    const updatePromise = postToAPI(payload).then(res => {
+      if (!res.success) throw new Error(res.message || 'Action failed');
+      return res;
+    });
+
+    setIsProductModalOpen(false);
+
     try {
-      const json = await postToAPI(payload);
-      if (json.success) {
-        showToast(`Product ${productModalMode === 'add' ? 'added' : 'updated'} successfully!`, 'success');
-        setIsProductModalOpen(false);
-        mutate();
+      if (productModalMode === 'add') {
+        const updatedProducts = [...products, newProduct];
+        await mutate(
+          updatePromise.then(() => {
+            return {
+              ...response,
+              data: {
+                ...response?.data,
+                products: [...products, { ...newProduct, uuid: 'loading...' }]
+              }
+            };
+          }),
+          {
+            optimisticData: {
+              ...response,
+              data: {
+                ...response?.data,
+                products: updatedProducts
+              }
+            },
+            rollbackOnError: true,
+            revalidate: true
+          }
+        );
+        showToast('Product added successfully!', 'success');
       } else {
-        showToast(json.message || 'Action failed.', 'error');
+        const updatedProducts = products.map(p => p.uuid === pUuid ? newProduct : p);
+        await mutate(
+          updatePromise.then(() => {
+            return {
+              ...response,
+              data: {
+                ...response?.data,
+                products: updatedProducts
+              }
+            };
+          }),
+          {
+            optimisticData: {
+              ...response,
+              data: {
+                ...response?.data,
+                products: updatedProducts
+              }
+            },
+            rollbackOnError: true,
+            revalidate: true
+          }
+        );
+        showToast('Product updated successfully!', 'success');
       }
-    } catch (err) {
-      showToast('Connection failed. Check your API URL and deployment settings.', 'error');
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed.', 'error');
     } finally {
       setPLoading(false);
     }
@@ -141,16 +207,39 @@ export default function Inventory() {
   const handleDelete = async (uuid: string) => {
     if (!confirm('Delete this product permanently?')) return;
     if (!API_URL) { showToast('API URL not configured.', 'error'); return; }
+
+    const updatePromise = postToAPI({ action: 'delete_product', productUuid: uuid }).then(res => {
+      if (!res.success) throw new Error(res.message || 'Delete failed');
+      return res;
+    });
+
     try {
-      const json = await postToAPI({ action: 'delete_product', productUuid: uuid });
-      if (json.success) {
-        showToast('Product deleted!', 'success');
-        mutate();
-      } else {
-        showToast(json.message || 'Delete failed.', 'error');
-      }
-    } catch (err) {
-      showToast('Connection failed. Check your API URL.', 'error');
+      const updatedProducts = products.filter(p => p.uuid !== uuid);
+      await mutate(
+        updatePromise.then(() => {
+          return {
+            ...response,
+            data: {
+              ...response?.data,
+              products: updatedProducts
+            }
+          };
+        }),
+        {
+          optimisticData: {
+            ...response,
+            data: {
+              ...response?.data,
+              products: updatedProducts
+            }
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+      showToast('Product deleted!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed.', 'error');
     }
   };
 

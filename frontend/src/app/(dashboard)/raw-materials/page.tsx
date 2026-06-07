@@ -77,17 +77,62 @@ export default function RawMaterials() {
       action: modalMode === 'add' ? 'add_raw_material' : 'update_raw_material',
       uuid, name, stock: Number(stock)
     };
+
+    const tempUuid = uuid || 'temp-' + Math.random().toString();
+    const newMaterial: RawMaterial = {
+      uuid: tempUuid,
+      name,
+      stock: Number(stock)
+    };
+
+    const updatePromise = postToAPI(payload).then(res => {
+      if (!res.success) throw new Error(res.message || 'Action failed');
+      return res;
+    });
+
+    setIsModalOpen(false);
+
     try {
-      const json = await postToAPI(payload);
-      if (json.success) {
-        showToast(`Material ${modalMode === 'add' ? 'added' : 'updated'} successfully!`, 'success');
-        setIsModalOpen(false);
-        mutate();
+      if (modalMode === 'add') {
+        await mutate(
+          updatePromise.then(() => {
+            return {
+              ...response,
+              data: [...rawMaterials, { ...newMaterial, uuid: 'loading...' }]
+            };
+          }),
+          {
+            optimisticData: {
+              ...response,
+              data: [...rawMaterials, newMaterial]
+            },
+            rollbackOnError: true,
+            revalidate: true
+          }
+        );
+        showToast('Material added successfully!', 'success');
       } else {
-        showToast(json.message || 'Action failed.', 'error');
+        const updatedList = rawMaterials.map(rm => rm.uuid === uuid ? newMaterial : rm);
+        await mutate(
+          updatePromise.then(() => {
+            return {
+              ...response,
+              data: updatedList
+            };
+          }),
+          {
+            optimisticData: {
+              ...response,
+              data: updatedList
+            },
+            rollbackOnError: true,
+            revalidate: true
+          }
+        );
+        showToast('Material updated successfully!', 'success');
       }
-    } catch (err) {
-      showToast('Connection failed.', 'error');
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed.', 'error');
     } finally {
       setLoading(false);
     }
@@ -95,16 +140,33 @@ export default function RawMaterials() {
 
   const handleDelete = async (uuid: string) => {
     if (!confirm('Delete this material?')) return;
+
+    const updatePromise = postToAPI({ action: 'delete_raw_material', uuid }).then(res => {
+      if (!res.success) throw new Error(res.message || 'Delete failed');
+      return res;
+    });
+
     try {
-      const json = await postToAPI({ action: 'delete_raw_material', uuid });
-      if (json.success) {
-        showToast('Material deleted!', 'success');
-        mutate();
-      } else {
-        showToast(json.message || 'Delete failed.', 'error');
-      }
-    } catch (err) {
-      showToast('Connection failed.', 'error');
+      const updatedList = rawMaterials.filter(rm => rm.uuid !== uuid);
+      await mutate(
+        updatePromise.then(() => {
+          return {
+            ...response,
+            data: updatedList
+          };
+        }),
+        {
+          optimisticData: {
+            ...response,
+            data: updatedList
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+      showToast('Material deleted!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Connection failed.', 'error');
     }
   };
 

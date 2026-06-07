@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeftRight, X, Loader2, Plus, Trash2, Search } from 'lucide-react';
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
 const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
@@ -33,6 +33,21 @@ type LineItem = {
   type: 'Out' | 'In';
   qtyChange: string;
   unitPrice: string;
+};
+
+type Transaction = {
+  id: string;
+  date: string;
+  productUuid: string;
+  productName: string;
+  productSku: string;
+  type: string;
+  qtyChange: number;
+  unitPrice: number;
+  total: number;
+  description: string;
+  buyerName: string;
+  batchId: string;
 };
 
 const selectClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white appearance-none';
@@ -186,35 +201,83 @@ export default function TransactionModal({
     }
 
     setLoading(true);
-    try {
-      const payload = {
-        action: 'batch_transaction',
-        customerUuid,
-        buyerName,
-        description,
-        items: items.map((item) => ({
-          productUuid: item.productUuid,
-          type: item.type,
-          qtyChange: Number(item.qtyChange),
-          unitPrice: Number(item.unitPrice),
-        })),
-      };
 
-      const res = await fetch(PROXY, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        redirect: 'follow',
-        body: JSON.stringify(payload),
-      });
+    const payload = {
+      action: 'batch_transaction',
+      customerUuid,
+      buyerName,
+      description,
+      items: items.map((item) => ({
+        productUuid: item.productUuid,
+        type: item.type,
+        qtyChange: Number(item.qtyChange),
+        unitPrice: Number(item.unitPrice),
+      })),
+    };
+
+    const batchId = 'temp-batch-' + Math.random().toString();
+    const dateStr = new Date().toISOString();
+    const optimisticTxItems: Transaction[] = items.map((item) => {
+      const prod = products.find(p => p.uuid === item.productUuid);
+      const qty = Number(item.qtyChange);
+      const price = Number(item.unitPrice);
+      return {
+        id: 'temp-' + Math.random().toString(),
+        date: dateStr,
+        productUuid: item.productUuid,
+        productName: prod ? prod.name : 'Unknown Product',
+        productSku: prod ? prod.sku : '',
+        type: item.type,
+        qtyChange: qty,
+        unitPrice: price,
+        total: qty * price,
+        description: description,
+        buyerName: buyerName,
+        batchId: batchId
+      };
+    });
+
+    const updatePromise = fetch(PROXY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      redirect: 'follow',
+      body: JSON.stringify(payload),
+    }).then(async (res) => {
       const json = await res.json();
-      if (json.success) {
-        onSuccess(json.message || 'Transaction recorded!');
-        onClose();
-      } else {
-        setError(json.message || 'Transaction failed.');
-      }
-    } catch (err) {
-      setError('Connection failed. Check your API URL and deployment settings.');
+      if (!json.success) throw new Error(json.message || 'Transaction failed');
+      return json;
+    });
+
+    onClose();
+
+    try {
+      const txKey = PROXY + '?action=transactions';
+
+      await mutate(
+        txKey,
+        updatePromise.then(() => {
+          return undefined; // Trigger normal background fetch and cache update
+        }),
+        {
+          optimisticData: (currentRes: any) => {
+            const currentList = Array.isArray(currentRes?.data) ? currentRes.data : [];
+            return {
+              ...currentRes,
+              data: [...optimisticTxItems, ...currentList]
+            };
+          },
+          rollbackOnError: true,
+          revalidate: true
+        }
+      );
+
+      // Mutate dashboard and customers as well to refresh their stocks/balances
+      mutate(`${PROXY}?action=dashboard`);
+      mutate(`${PROXY}?action=customers`);
+
+      onSuccess('Transaction recorded!');
+    } catch (err: any) {
+      setError(err.message || 'Connection failed. Check your API URL and deployment settings.');
     } finally {
       setLoading(false);
     }
