@@ -1,48 +1,20 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server';
+import type { NextRequest } from 'next/server';
+import { webCsp, securityHeaders } from '../security-headers.mjs';
 
 export default function proxy(request: NextRequest) {
-  const authToken = request.cookies.get('auth_token')
-  const { pathname } = request.nextUrl
-
-
-  // Define public paths that don't require authentication
-  const isPublicPath = pathname === '/login'
-  
-  // Define protected paths (exclude static files and public paths)
-  const isStaticFile = pathname.startsWith('/_next') || 
-                       pathname.startsWith('/api') || 
-                       pathname.includes('.') ||
-                       pathname === '/favicon.ico'
-
-  if (isStaticFile) {
-    return NextResponse.next()
-  }
-
-  // Redirect logic
-  if (!authToken && !isPublicPath) {
-    // If no token and trying to access protected route -> login
-    return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  if (authToken && isPublicPath) {
-    // If has token and trying to access login -> dashboard
-    return NextResponse.redirect(new URL('/', request.url))
-  }
-
-  return NextResponse.next()
+  const nonce = Buffer.from(crypto.getRandomValues(new Uint8Array(16))).toString('base64');
+  const development = process.env.NODE_ENV !== 'production';
+  const csp = webCsp(nonce, development);
+  const headers = new Headers(request.headers);
+  headers.set('x-nonce', nonce);
+  headers.set('Content-Security-Policy', csp);
+  const response = NextResponse.next({ request: { headers } });
+  response.headers.set('Content-Security-Policy', csp);
+  for (const [name, value] of Object.entries(securityHeaders)) response.headers.set(name, value);
+  if (!development) response.headers.set('Strict-Transport-Security', 'max-age=31536000');
+  response.headers.set('Cache-Control', 'private, no-store');
+  return response;
 }
 
-// See "Matching Paths" below to learn more
-export const config = {
-  matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
-  ],
-}
+export const config = { matcher: ['/((?!_next/static|_next/image|favicon.ico).*)'] };

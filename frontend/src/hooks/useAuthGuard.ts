@@ -1,23 +1,24 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { hasSession } from '@/lib/api';
 
 /**
- * Client-side auth guard.
- * Replaces the Next.js middleware (proxy.ts) which doesn't run in a static/Capacitor export.
- * Call this at the top of any protected layout or page component.
+ * UI gate only. Every API request independently verifies the backend session.
  */
 export function useAuthGuard() {
   const router = useRouter();
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const hasCookie = document.cookie
-      .split(';')
-      .some((c) => c.trim().startsWith('auth_token=true'));
-
-    if (!hasCookie) {
-      router.replace('/login');
-    }
+    let active = true;
+    hasSession().then(valid => {
+      if (!active) return;
+      if (valid) setReady(true);
+      else router.replace('/login/');
+    }).catch(() => { if (active) router.replace('/login/'); });
+    return () => { active = false; };
   }, [router]);
+  return ready;
 }

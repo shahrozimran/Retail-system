@@ -1,12 +1,12 @@
 'use client';
+import { useMounted } from '@/hooks/useMounted';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import useSWR from 'swr';
-import { Plus, Inbox, Loader2, Calendar, Edit, Trash2, CheckCircle, XCircle, ChevronDown, ChevronRight, Package, Search } from 'lucide-react';
+import { Plus, Inbox, Loader2, Calendar, CheckCircle, XCircle, ChevronDown, ChevronRight, Package, Search } from 'lucide-react';
 import TransactionModal from '@/components/TransactionModal';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type Transaction = {
   id: string;
@@ -38,19 +38,6 @@ const fetcher = async (url: string) => {
   if (!res.ok) throw new Error('HTTP error: ' + res.status);
   return res.json();
 };
-
-const postToAPI = async (payload: object) => {
-  const res = await fetch(PROXY, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    redirect: 'follow',
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) throw new Error('HTTP error: ' + res.status);
-  return res.json();
-};
-
-const inputClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-4 py-2.5 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white';
 
 function groupByBatch(transactions: Transaction[]): BatchGroup[] {
   const map = new Map<string, BatchGroup>();
@@ -85,7 +72,7 @@ export default function Transactions() {
   const batches = groupByBatch(transactions);
 
   const error = !API_URL
-    ? 'NEXT_PUBLIC_API_URL is not set.'
+    ? 'NEXT_PUBLIC_API_ORIGIN is not set.'
     : swrError
     ? swrError.message
     : response && !response.success
@@ -94,17 +81,10 @@ export default function Transactions() {
 
   const [isTxModalOpen, setIsTxModalOpen] = useState(false);
   const [expandedBatches, setExpandedBatches] = useState<Set<string>>(new Set());
-  const [editTx, setEditTx] = useState<Transaction | null>(null);
-  const [editLoading, setEditLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-  const [mounted, setMounted] = useState(false);
-  const [eQty, setEQty] = useState('');
-  const [ePrice, setEPrice] = useState('');
-  const [eDesc, setEDesc] = useState('');
-  const [eBuyer, setEBuyer] = useState('');
+  const mounted = useMounted();
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => { setMounted(true); }, []);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
     setToast({ msg, type });
@@ -118,101 +98,6 @@ export default function Transactions() {
       else next.add(batchId);
       return next;
     });
-  };
-
-  const openEdit = (t: Transaction) => {
-    setEditTx(t);
-    setEQty(String(t.qtyChange));
-    setEPrice(String(t.unitPrice));
-    setEDesc(t.description || '');
-    setEBuyer(t.buyerName || '');
-  };
-
-  const handleUpdate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editTx) return;
-
-    const qtyNum = Number(eQty);
-    const priceNum = Number(ePrice);
-
-    const updatedTransaction = {
-      ...editTx,
-      qtyChange: qtyNum,
-      unitPrice: priceNum,
-      total: qtyNum * priceNum,
-      description: eDesc,
-      buyerName: eBuyer
-    };
-
-    const updatePromise = postToAPI({
-      action: 'update_transaction',
-      transactionId: editTx.id,
-      qtyChange: eQty,
-      unitPrice: ePrice,
-      description: eDesc,
-      buyerName: eBuyer,
-    }).then(res => {
-      if (!res.success) throw new Error(res.message || 'Update failed');
-      return res;
-    });
-
-    setEditTx(null);
-
-    try {
-      await mutate(
-        updatePromise.then(() => {
-          return {
-            ...response,
-            data: transactions.map(t => t.id === editTx.id ? updatedTransaction : t)
-          };
-        }),
-        {
-          optimisticData: {
-            ...response,
-            data: transactions.map(t => t.id === editTx.id ? updatedTransaction : t)
-          },
-          rollbackOnError: true,
-          revalidate: true
-        }
-      );
-      showToast('Transaction updated!', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Connection failed.', 'error');
-    } finally {
-      setEditLoading(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
-    if (!confirm('Delete this item from the transaction?')) return;
-
-    const updatePromise = postToAPI({ action: 'delete_transaction', transactionId: id }).then(res => {
-      if (!res.success) throw new Error(res.message || 'Delete failed');
-      return res;
-    });
-
-    try {
-      const updatedList = transactions.filter(t => t.id !== id);
-      await mutate(
-        updatePromise.then(() => {
-          return {
-            ...response,
-            data: updatedList
-          };
-        }),
-        {
-          optimisticData: {
-            ...response,
-            data: updatedList
-          },
-          rollbackOnError: true,
-          revalidate: true
-        }
-      );
-      showToast('Item deleted!', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Connection failed.', 'error');
-    }
   };
 
   const formatCurrency = (val: number) =>
@@ -236,7 +121,7 @@ export default function Transactions() {
         <div className="p-5 border-b border-base-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold text-white">Transaction History</h2>
-            <p className="text-xs text-neutral-500 mt-0.5">Multi-product orders are grouped as a single transaction</p>
+            <p className="text-xs text-neutral-500 mt-0.5">Posted transactions are preserved. Record a separate transaction for adjustments.</p>
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative">
@@ -336,18 +221,7 @@ export default function Transactions() {
                       {formatCurrency(batch.grandTotal)}
                     </div>
 
-                    {/* Actions - only for single-item batches */}
-                    {!isMulti && (
-                      <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={() => openEdit(firstItem)} className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors">
-                          <Edit className="w-3.5 h-3.5" />
-                        </button>
-                        <button onClick={() => handleDelete(firstItem.id)} className="p-1.5 text-red-500 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors">
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                    {isMulti && <div className="w-16" />}
+                    <div className="w-16 text-xs text-neutral-600">Posted</div>
                   </div>
 
                   {/* Expanded item rows */}
@@ -368,14 +242,7 @@ export default function Transactions() {
                           <div className="w-24 text-right font-medium text-neutral-300 tabular-nums">
                             {formatCurrency(item.total)}
                           </div>
-                          <div className="w-16 flex items-center justify-end gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                            <button onClick={() => openEdit(item)} className="p-1.5 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors">
-                              <Edit className="w-3.5 h-3.5" />
-                            </button>
-                            <button onClick={() => handleDelete(item.id)} className="p-1.5 text-red-500 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
+                          <div className="w-16" />
                         </div>
                       ))}
                       {/* Batch subtotal footer */}
@@ -405,53 +272,6 @@ export default function Transactions() {
         onClose={() => setIsTxModalOpen(false)}
         onSuccess={(msg) => { showToast(msg, 'success'); mutate(); }}
       />
-
-      {/* Edit Transaction Modal */}
-      {editTx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setEditTx(null)} />
-          <div className="relative w-full max-w-md bg-base-950 border border-base-800 rounded-2xl shadow-2xl z-10 mx-4">
-            <div className="flex items-center justify-between p-5 border-b border-base-800 bg-base-900/50 rounded-t-2xl">
-              <div>
-                <h3 className="text-lg font-bold text-white">Edit Item</h3>
-                <p className="text-xs text-neutral-500 mt-0.5">{editTx.productName} - {editTx.type === 'Out' ? 'Sale' : 'Stock In'}</p>
-              </div>
-              <button onClick={() => setEditTx(null)} className="text-neutral-400 hover:text-white p-1">x</button>
-            </div>
-            <form onSubmit={handleUpdate} className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Quantity</label>
-                  <input required type="number" min="1" value={eQty} onChange={(e) => setEQty(e.target.value)} className={inputClass} />
-                </div>
-                <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Unit Price (PKR)</label>
-                  <input required type="number" step="0.01" min="0" value={ePrice} onChange={(e) => setEPrice(e.target.value)} className={inputClass} />
-                </div>
-              </div>
-              {editTx.type === 'Out' && (
-                <div>
-                  <label className="block text-sm font-bold text-neutral-400 mb-1.5">Buyer Name</label>
-                  <input type="text" value={eBuyer} onChange={(e) => setEBuyer(e.target.value)} className={inputClass} placeholder="Customer name" />
-                </div>
-              )}
-              <div>
-                <label className="block text-sm font-bold text-neutral-400 mb-1.5">Description</label>
-                <input type="text" value={eDesc} onChange={(e) => setEDesc(e.target.value)} className={inputClass} placeholder="Optional note" />
-              </div>
-              <div className="p-3 bg-yellow-950/20 border border-yellow-900/50 rounded-lg">
-                <p className="text-xs text-green-400">Note: Saving changes will automatically recalculate stock levels.</p>
-              </div>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => setEditTx(null)} className="flex-1 bg-base-900 hover:bg-base-800 text-white py-2.5 rounded-lg font-bold border border-base-800">Cancel</button>
-                <button type="submit" disabled={editLoading} className="flex-1 bg-white hover:bg-neutral-200 disabled:opacity-60 text-black py-2.5 rounded-lg font-bold flex items-center justify-center gap-2">
-                  {editLoading ? (<><Loader2 className="w-4 h-4 animate-spin" /> Saving...</>) : 'Save Changes'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {toast && (
         <div className={`fixed bottom-6 right-6 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-xl shadow-2xl border fade-in ${toast.type === 'success' ? 'bg-base-900 border-white/20 text-white' : 'bg-red-950/90 border-red-900 text-red-300'}`}>

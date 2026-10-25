@@ -1,11 +1,10 @@
 'use client';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useEffect, useMemo } from 'react';
-import { X, FileText, Download, Loader2, Building2, User, Hash, Calendar, CheckSquare, Square, Search, Eye, EyeOff } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, FileText, Download, Loader2, Building2, User, Hash, CheckSquare, Square, Search, Eye, EyeOff } from 'lucide-react';
 import useSWR from 'swr';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 const fetcher = async (url: string) => {
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
   return res.json();
@@ -32,6 +31,7 @@ type Transaction = {
   buyerName: string;
   description: string;
   batchId: string;
+  customerUuid?: string;
 };
 
 type InvoiceModalProps = {
@@ -43,12 +43,15 @@ type InvoiceModalProps = {
 const inputClass =
   'w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white placeholder-zinc-600';
 
-export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceModalProps) {
+export default function InvoiceModal(props: InvoiceModalProps) {
+  return props.isOpen ? <InvoiceContent {...props} /> : null;
+}
+function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
   const [generating, setGenerating] = useState(false);
 
   // Invoice meta fields
-  const [invoiceNo, setInvoiceNo] = useState('');
-  const [issueDate, setIssueDate] = useState('');
+  const [invoiceNo, setInvoiceNo] = useState(() => `INV-${Date.now().toString().slice(-6)}`);
+  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
   
   // Permanent Company Defaults
@@ -57,9 +60,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const [companyEmail, setCompanyEmail] = useState('aifunk62@gmail.com');
   const [companyPhone, setCompanyPhone] = useState('03114437441');
   
-  const [clientName, setClientName] = useState('');
   const [clientSearch, setClientSearch] = useState('');
-  const [clientUuid, setClientUuid] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [notes, setNotes] = useState('Thank you for your business!');
@@ -76,27 +77,15 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
     Array.isArray(customersRes?.data) ? customersRes.data : []
   , [customersRes]);
 
-  const selectedCustomer = React.useMemo(() => 
-    customers.find(c => c.uuid === clientUuid)
-  , [customers, clientUuid]);
-
-  // Sync client name with search
-  useEffect(() => {
-    const query = clientSearch.toLowerCase();
-    const matched = customers.find(c => 
-      c.name.toLowerCase() === query || 
-      `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query
-    );
-    if (matched) {
-      setClientUuid(matched.uuid);
-      setClientName(matched.name);
-      if (matched.address) setClientAddress(matched.address);
-      if (matched.email) setClientEmail(matched.email);
-    } else {
-      setClientUuid('');
-      setClientName(clientSearch);
-    }
-  }, [clientSearch, customers]);
+  const query = clientSearch.toLowerCase();
+  const selectedCustomer = customers.find(c => c.name.toLowerCase() === query || `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query);
+  const clientName = selectedCustomer?.name || clientSearch;
+  const updateClientSearch = (value: string) => {
+    setClientSearch(value);
+    const match = customers.find(c => c.name.toLowerCase() === value.toLowerCase() || `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === value.toLowerCase());
+    setClientAddress(match?.address || '');
+    setClientEmail(match?.email || '');
+  };
 
   // Filter & Selection states
   const [includeExpenses, setIncludeExpenses] = useState(false);
@@ -104,25 +93,8 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
   const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // Reset selection when opened
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedIds(new Set());
-      setInvoiceNo(`INV-${Date.now().toString().slice(-6)}`);
-      setIssueDate(new Date().toISOString().split('T')[0]);
-      setClientSearch('');
-      setClientUuid('');
-      setClientName('');
-      setClientAddress('');
-      setClientEmail('');
-      setIncludePreviousBalance(false);
-      setShowBalanceValue(false);
-    }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
-
   const filteredTx = transactions.filter((t) => {
+    if (selectedCustomer && t.customerUuid !== selectedCustomer.uuid) return false;
     if (!includeExpenses && t.type !== 'Out') return false;
     if (dateFrom && new Date(t.date) < new Date(dateFrom)) return false;
     if (dateTo && new Date(t.date) > new Date(dateTo + 'T23:59:59')) return false;
@@ -133,7 +105,6 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
 
   const subtotal = selectedTx.reduce((s, t) => s + t.total, 0);
   const tax = subtotal * (Number(taxRate) / 100);
-  const grandTotal = subtotal + tax;
 
   const fmt = (v: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(v);
@@ -252,7 +223,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
         styles: { overflow: 'linebreak', cellPadding: { top: 5, right: 2, bottom: 5, left: 2 } },
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      const finalY = (doc as typeof doc & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
       const totalsX = pageW - margin - 65;
       const drawTotalRow = (label: string, value: string, y: number, bold = false, highlight = false) => {
         if (highlight) { doc.setFillColor(0, 0, 0); doc.roundedRect(totalsX - 2, y - 5, 65 + 2, 9, 1.5, 1.5, 'F'); }
@@ -272,13 +243,13 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       if (selectedCustomer && includePreviousBalance) {
         ty += 7;
         const balanceType = selectedCustomer.balance >= 0 ? '(Receivable)' : '(Payable)';
-        drawTotalRow(`Prev. Balance ${balanceType}`, fmt(selectedCustomer.balance), ty);
+        drawTotalRow(`Account balance ${balanceType} (separate)`, fmt(selectedCustomer.balance), ty);
       }
 
       doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); 
       ty += 8;
       
-      const totalDue = subtotal + tax + (includePreviousBalance ? (selectedCustomer?.balance || 0) : 0);
+      const totalDue = subtotal + tax;
       drawTotalRow('TOTAL DUE', fmt(totalDue), ty + 2, true, true);
 
       if (notes) {
@@ -294,7 +265,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
       doc.text(`Generated ${new Date().toLocaleString()}`, pageW - margin, pageH - 5.5, { align: 'right' });
 
       doc.save(`${invoiceNo}.pdf`);
-    } catch (err) { alert('Failed to generate PDF.'); } finally { setGenerating(false); }
+    } catch { alert('Failed to generate PDF.'); } finally { setGenerating(false); }
   };
 
   return (
@@ -421,7 +392,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                     required
                     type="text"
                     value={clientSearch}
-                    onChange={(e) => setClientSearch(e.target.value)}
+                    onChange={(e) => updateClientSearch(e.target.value)}
                     className={`${inputClass} !pl-9`}
                     placeholder="Search existing or type new name..."
                     list="invoice-customers-datalist"
@@ -437,7 +408,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                   <div className="mt-2 space-y-2">
                     <div className="p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between group/bal">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Previous Balance:</span>
+                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Current Account Balance:</span>
                         <button 
                           type="button"
                           onClick={() => setShowBalanceValue(!showBalanceValue)}
@@ -461,7 +432,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                           onChange={(e) => setIncludePreviousBalance(e.target.checked)} 
                         />
                       </div>
-                      <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-300 transition-colors uppercase tracking-tight">Include balance in invoice total</span>
+                      <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-300 transition-colors uppercase tracking-tight">Show account balance separately</span>
                     </label>
                   </div>
                 )}
@@ -502,7 +473,7 @@ export default function InvoiceModal({ isOpen, onClose, transactions }: InvoiceM
                     </div>
                   )}
                   <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Total Due</p>
-                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(subtotal + tax + (includePreviousBalance ? (selectedCustomer?.balance || 0) : 0))}</p>
+                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(subtotal + tax)}</p>
                 </div>
               </div>
               <div className="flex gap-3">

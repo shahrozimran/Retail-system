@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { login } from '@/lib/api';
 import { useRouter } from 'next/navigation';
 import { Lock, User, Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -18,19 +19,16 @@ export default function LoginPage() {
     setIsLoading(true);
     setError('');
 
-    // Mock authentication logic
-    setTimeout(() => {
-      const expectedUsername = process.env.NEXT_PUBLIC_ADMIN_USERNAME || 'imran';
-      const expectedPassword = process.env.NEXT_PUBLIC_ADMIN_PASSWORD || 'imran';
-      if (username === expectedUsername && password === expectedPassword) {
-        // Set a simple cookie
-        document.cookie = "auth_token=true; path=/; max-age=86400; SameSite=Lax";
-        router.push('/');
-      } else {
-        setError('Invalid username or password');
-        setIsLoading(false);
-      }
-    }, 1500);
+    try {
+      await login(email, password);
+      setPassword('');
+      router.replace('/');
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Sign in failed.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -59,18 +57,20 @@ export default function LoginPage() {
             )}
 
             <div className="space-y-2">
-              <label className="text-sm font-medium text-base-300 ml-1">Username</label>
+              <label className="text-sm font-medium text-base-300 ml-1">Email</label>
               <div className="relative group">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-base-500 group-focus-within:text-primary-500 transition-colors">
                   <User size={18} />
                 </div>
                 <input
-                  type="text"
+                  type="email"
                   required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  autoComplete="email"
+                  maxLength={254}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   className="block w-full pl-11 pr-4 py-3 bg-base-950/50 border border-white/5 rounded-xl text-white placeholder-base-600 focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:border-primary-500 transition-all"
-                  placeholder="admin"
+                  placeholder="you@example.com"
                 />
               </div>
             </div>
@@ -83,6 +83,8 @@ export default function LoginPage() {
                 </div>
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  maxLength={1024}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

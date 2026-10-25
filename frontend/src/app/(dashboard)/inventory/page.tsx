@@ -1,16 +1,16 @@
 'use client';
+import { errorMessage } from '@/lib/errors';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import useSWR from 'swr';
 import { Search, Plus, Tag, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2, AlertTriangle } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type RawMaterial = {
   uuid?: string; // New: UUID from global list
   name: string;
-  quantity: number; // For legacy support or display
+  quantity: number; // Display snapshot from the normalized material record
   requiredPerProduct: number;
 };
 
@@ -63,7 +63,7 @@ export default function Inventory() {
   const globalRawMaterials: { uuid: string; name: string; stock: number }[] = Array.isArray(rawResponse?.data) ? rawResponse.data : [];
   
   // Safe extraction with Array check
-  const products: Product[] = Array.isArray(response?.data?.products) ? response.data.products : [];
+  const products: Product[] = useMemo(() => Array.isArray(response?.data?.products) ? response.data.products : [], [response]);
 
   // Get unique categories for suggestions
   const existingCategories = useMemo(() => {
@@ -123,7 +123,7 @@ export default function Inventory() {
       rawMaterials: pRawMaterials,
     };
 
-    const tempUuid = pUuid || 'temp-' + Math.random().toString();
+    const tempUuid = pUuid || 'temp-' + crypto.randomUUID();
     const newProduct: Product = {
       uuid: tempUuid,
       sku: pSku,
@@ -132,7 +132,7 @@ export default function Inventory() {
       buyPrice: Number(pBuy),
       salePrice: Number(pSale),
       quantity: Number(pQty) || 0,
-      potentialQuantity: potentialProduction,
+      potentialQuantity: calculatePotentialProduction(),
       minStock: Number(pMin),
       status: pStatus,
       rawMaterials: pRawMaterials
@@ -197,8 +197,8 @@ export default function Inventory() {
         );
         showToast('Product updated successfully!', 'success');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Connection failed.', 'error');
+    } catch (err: unknown) {
+      showToast(errorMessage(err) || 'Connection failed.', 'error');
     } finally {
       setPLoading(false);
     }
@@ -238,15 +238,15 @@ export default function Inventory() {
         }
       );
       showToast('Product deleted!', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Connection failed.', 'error');
+    } catch (err: unknown) {
+      showToast(errorMessage(err) || 'Connection failed.', 'error');
     }
   };
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
-  const potentialProduction = useMemo(() => {
+  const calculatePotentialProduction = () => {
     if (!pRawMaterials || pRawMaterials.length === 0) return 0;
     let minPossible = Infinity;
     
@@ -261,7 +261,8 @@ export default function Inventory() {
       }
     });
     return minPossible === Infinity ? 0 : minPossible;
-  }, [pRawMaterials, globalRawMaterials]);
+  };
+  const potentialProduction = calculatePotentialProduction();
 
   const filteredProducts = products.filter((p) => {
     if (!searchTerm) return true;
@@ -287,14 +288,14 @@ export default function Inventory() {
       {!API_URL && (
         <div className="flex items-center gap-3 bg-yellow-950/40 border border-yellow-900 text-yellow-300 rounded-xl px-5 py-3.5 text-sm">
           <AlertTriangle className="w-5 h-5 shrink-0" />
-          <p><strong>NEXT_PUBLIC_API_URL</strong> is not set in <code>.env.local</code>. Add your Google Apps Script URL and restart the dev server.</p>
+          <p><strong>NEXT_PUBLIC_API_ORIGIN</strong> is not set in <code>.env.local</code>. Add the hosted HTTPS application origin and rebuild the Android app.</p>
         </div>
       )}
       {fetchError && API_URL && (
         <div className="flex items-center gap-3 bg-red-950/40 border border-red-900 text-red-300 rounded-xl px-5 py-3.5 text-sm">
           <AlertTriangle className="w-5 h-5 shrink-0" />
           <p>
-            <strong>Cannot connect to Google Apps Script.</strong> Make sure the Web App is deployed with &ldquo;Execute as: Me&rdquo; and &ldquo;Who has access: Anyone&rdquo;.{' '}
+            <strong>Cannot load inventory.</strong> Confirm that the Supabase migrations are installed and your session is valid.{' '}
             <button onClick={() => mutate()} className="underline font-bold">Retry</button>
           </p>
         </div>
@@ -484,7 +485,7 @@ export default function Inventory() {
                   <label className="text-sm font-bold text-white">Raw Materials Composition</label>
                   <button 
                     type="button" 
-                    onClick={() => setPRawMaterials([...pRawMaterials, { name: '', quantity: 0, requiredPerProduct: 0 }])}
+                    onClick={() => setPRawMaterials([...pRawMaterials, { name: '', quantity: 0, requiredPerProduct: 0.01 }])}
                     className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2.5 py-1.5 rounded-lg border border-neutral-700 flex items-center gap-1.5 transition-colors"
                   >
                     <Plus className="w-3 h-3" /> Select Material
@@ -513,7 +514,7 @@ export default function Inventory() {
                             >
                               <option value="">Select Material...</option>
                               {globalRawMaterials.map(g => (
-                                <option key={g.uuid} value={g.uuid}>{g.name}</option>
+                                <option key={g.uuid} value={g.uuid} disabled={pRawMaterials.some((other, otherIndex) => otherIndex !== idx && other.uuid === g.uuid)}>{g.name}</option>
                               ))}
                             </select>
                           </div>
@@ -539,7 +540,7 @@ export default function Inventory() {
                             <input 
                               required 
                               type="number" 
-                              min="0"
+                              min="0.01"
                               step="0.01"
                               value={rm.requiredPerProduct} 
                               onChange={(e) => {

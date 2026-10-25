@@ -1,6 +1,9 @@
 'use client';
+import { useMounted } from '@/hooks/useMounted';
+import { errorMessage } from '@/lib/errors';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import useSWR from 'swr';
 import {
   Search,
@@ -18,8 +21,6 @@ import {
   Info
 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type RawMaterial = {
   name: string;
@@ -69,11 +70,10 @@ const postToAPI = async (payload: object) => {
   return res.json();
 };
 
-const inputClass = 'w-full bg-base-950 border border-base-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white transition-all';
 
 export default function Production() {
   // Fetch Products for selection
-  const { data: dashboardData, isLoading: productsLoading, mutate: mutateInventory } = useSWR(
+  const { data: dashboardData, mutate: mutateInventory } = useSWR(
     API_URL ? `${PROXY}?action=dashboard` : null,
     fetcher
   );
@@ -84,8 +84,7 @@ export default function Production() {
     fetcher
   );
 
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
+  const mounted = useMounted();
 
   const products: Product[] = dashboardData?.data?.products || [];
   const history: ProductionRecord[] = Array.isArray(historyResponse?.data) ? historyResponse.data : [];
@@ -130,7 +129,7 @@ export default function Production() {
     });
 
     const optimisticRecord: ProductionRecord = {
-      id: 'temp-' + Math.random().toString(),
+      id: 'temp-' + crypto.randomUUID(),
       date: new Date().toISOString(),
       productUuid: selectedProduct.uuid,
       productName: selectedProduct.name,
@@ -189,8 +188,8 @@ export default function Production() {
 
       await Promise.all([invPromise, histPromise]);
       showToast("Production recorded and inventory updated!", "success");
-    } catch (err: any) {
-      showToast(err.message || "Connection failed", "error");
+    } catch (err: unknown) {
+      showToast(errorMessage(err) || "Connection failed", "error");
     } finally {
       setIsSubmitting(false);
     }

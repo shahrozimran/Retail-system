@@ -17,8 +17,12 @@
 # Environment / Sensitive
 .env*
 .env.local
+!frontend/.env.example
 **/ .env*
 *.pem
+supabase/private/
+supabase/.temp/
+supabase/.branches/
 
 # Logs
 npm-debug.log*

@@ -1,11 +1,11 @@
 'use client';
+import { errorMessage } from '@/lib/errors';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import useSWR from 'swr';
-import { Search, Plus, Hammer, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2, AlertTriangle } from 'lucide-react';
+import { Search, Plus, Hammer, Inbox, Loader2, CheckCircle, XCircle, Edit, Trash2 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type RawMaterial = {
   uuid: string;
@@ -34,7 +34,7 @@ const inputClass =
   'w-full bg-base-900 border border-base-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white';
 
 export default function RawMaterials() {
-  const { data: response, isLoading, error: fetchError, mutate } = useSWR(
+  const { data: response, isLoading, mutate } = useSWR(
     API_URL ? `${PROXY}?action=raw_materials` : null,
     fetcher,
     { shouldRetryOnError: false }
@@ -78,7 +78,7 @@ export default function RawMaterials() {
       uuid, name, stock: Number(stock)
     };
 
-    const tempUuid = uuid || 'temp-' + Math.random().toString();
+    const tempUuid = uuid || 'temp-' + crypto.randomUUID();
     const newMaterial: RawMaterial = {
       uuid: tempUuid,
       name,
@@ -131,8 +131,8 @@ export default function RawMaterials() {
         );
         showToast('Material updated successfully!', 'success');
       }
-    } catch (err: any) {
-      showToast(err.message || 'Connection failed.', 'error');
+    } catch (err: unknown) {
+      showToast(errorMessage(err) || 'Connection failed.', 'error');
     } finally {
       setLoading(false);
     }
@@ -165,8 +165,8 @@ export default function RawMaterials() {
         }
       );
       showToast('Material deleted!', 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Connection failed.', 'error');
+    } catch (err: unknown) {
+      showToast(errorMessage(err) || 'Connection failed.', 'error');
     }
   };
 

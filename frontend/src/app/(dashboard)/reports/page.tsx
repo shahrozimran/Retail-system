@@ -1,20 +1,12 @@
 'use client';
+import { useMounted } from '@/hooks/useMounted';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import useSWR from 'swr';
 import { PieChart, Inbox, Loader2, Calendar, FileText, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import InvoiceModal from '@/components/InvoiceModal';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
-
-type FinanceRecord = {
-  date: string;
-  category: string;
-  debit: number;
-  credit: number;
-  balanceSnapshot: number;
-};
 
 type Transaction = {
   id: string;
@@ -28,6 +20,7 @@ type Transaction = {
   buyerName: string;
   description: string;
   batchId: string;
+  customerUuid?: string;
 };
 
 const fetcher = async (url: string) => {
@@ -48,14 +41,12 @@ export default function Reports() {
     { shouldRetryOnError: false }
   );
 
-  const finances: FinanceRecord[] = finResponse?.data || [];
   const transactions: Transaction[] = txResponse?.data || [];
   const error = !API_URL ? 'API_URL not set.' : (finError ? finError.message : (finResponse && !finResponse.success ? finResponse.message : ''));
 
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
-  useEffect(() => { setMounted(true); }, []);
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
@@ -68,7 +59,7 @@ export default function Reports() {
   const statCards = [
     { label: 'Sales Revenue', value: formatCurrency(totalRevenue), icon: TrendingUp, color: 'text-green-400', bg: 'bg-green-950/20 border-green-900/40' },
     { label: 'Returns/Expenses', value: formatCurrency(totalExpenses), icon: TrendingDown, color: 'text-red-400', bg: 'bg-red-950/20 border-red-900/40' },
-    { label: 'Net Profit/Loss', value: formatCurrency(netBalance), icon: DollarSign, color: 'text-white', bg: 'bg-white/5 border-white/10' },
+    { label: 'Sales less purchases', value: formatCurrency(netBalance), icon: DollarSign, color: 'text-white', bg: 'bg-white/5 border-white/10' },
   ];
 
   return (
@@ -151,7 +142,7 @@ export default function Reports() {
                           ? 'bg-white text-black border-white'
                           : 'bg-red-950/30 text-red-400 border-red-900/50'
                       }`}>
-                        {t.type === 'Out' ? 'SALE' : 'RETURN'}
+                        {t.type === 'Out' ? 'SALE' : 'STOCK IN'}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-center font-mono font-bold text-white">

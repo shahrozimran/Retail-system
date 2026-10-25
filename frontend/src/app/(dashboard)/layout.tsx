@@ -10,10 +10,11 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  // Redirects to /login if auth_token cookie is absent (replaces middleware for static/Android build)
-  useAuthGuard();
+  const ready = useAuthGuard();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  if (!ready) return <div className="p-8 text-neutral-400">Verifying session...</div>;
 
   return (
     <div className="flex w-full min-h-screen overflow-hidden">

@@ -1,15 +1,16 @@
 'use client';
+import { useMounted } from '@/hooks/useMounted';
+import { errorMessage } from '@/lib/errors';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import useSWR, { mutate } from 'swr';
 import { 
-  Users, UserPlus, Search, Loader2, ArrowLeftRight, 
+  Users, UserPlus, Search, Loader2,
   TrendingUp, TrendingDown, Clock, Plus, X, 
-  Phone, Mail, Trash2, History, CreditCard, ChevronRight
+  Phone, Mail, Trash2, History
 } from 'lucide-react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type Customer = {
   uuid: string;
@@ -35,7 +36,7 @@ const fetcher = async (url: string) => {
   return res.json();
 };
 
-const postToAPI = async (payload: any) => {
+const postToAPI = async (payload: Record<string, unknown>) => {
   const res = await fetch(PROXY, {
     method: 'POST',
     redirect: 'follow',
@@ -68,8 +69,7 @@ export default function CustomersPage() {
   const [payType, setPayType] = useState<'Receivable' | 'Payable'>('Receivable');
   const [payDesc, setPayDesc] = useState('');
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useMounted();
 
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
@@ -85,7 +85,7 @@ export default function CustomersPage() {
     setIsSubmitting(true);
 
     const newCustomerOptimistic: Customer = {
-      uuid: 'temp-' + Math.random().toString(),
+      uuid: 'temp-' + crypto.randomUUID(),
       name: newName,
       phone: newPhone,
       email: '',
@@ -120,9 +120,9 @@ export default function CustomersPage() {
           revalidate: true
         }
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || "Failed to add customer.");
+      alert(errorMessage(err) || "Failed to add customer.");
     } finally {
       setIsSubmitting(false);
     }
@@ -166,7 +166,7 @@ export default function CustomersPage() {
 
       const ledgerKey = `${PROXY}?action=customer_ledger&customerUuid=${selectedCustomer.uuid}`;
       const newLedgerEntry: LedgerEntry = {
-        id: 'temp-' + Math.random().toString(),
+        id: 'temp-' + crypto.randomUUID(),
         date: new Date().toISOString(),
         type: payType,
         amount: amountNum,
@@ -179,7 +179,7 @@ export default function CustomersPage() {
         ledgerKey,
         updatePromise.then(() => undefined),
         {
-          optimisticData: (currentRes: any) => {
+          optimisticData: (currentRes: { data?: LedgerEntry[]; success?: boolean } | undefined) => {
             const currentList = Array.isArray(currentRes?.data) ? currentRes.data : [];
             return {
               ...currentRes,
@@ -208,9 +208,9 @@ export default function CustomersPage() {
           revalidate: true
         }
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || "Failed to connect to API.");
+      alert(errorMessage(err) || "Failed to connect to API.");
       setSelectedCustomer(selectedCustomer);
     } finally {
       setIsSubmitting(false);
@@ -243,9 +243,9 @@ export default function CustomersPage() {
           revalidate: true
         }
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      alert(err.message || "Failed to delete customer.");
+      alert(errorMessage(err) || "Failed to delete customer.");
     }
   };
 

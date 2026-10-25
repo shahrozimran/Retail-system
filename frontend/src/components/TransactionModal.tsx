@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { errorMessage } from '@/lib/errors';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import React, { useState, useMemo } from 'react';
 import { ArrowLeftRight, X, Loader2, Plus, Trash2, Search } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 const fetcher = async (url: string) => {
   const res = await fetch(url, { method: 'GET', redirect: 'follow' });
   return res.json();
@@ -57,15 +57,11 @@ function makeItem(id: number): LineItem {
   return { id, productUuid: '', searchQuery: '', type: 'Out', qtyChange: '1', unitPrice: '' };
 }
 
-export default function TransactionModal({
-  isOpen,
-  onClose,
-  onSuccess,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: (msg: string) => void;
-}) {
+type Props = { isOpen: boolean; onClose: () => void; onSuccess: (msg: string) => void };
+export default function TransactionModal(props: Props) {
+  return props.isOpen ? <TransactionContent {...props} /> : null;
+}
+function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
   const { data: dashboardRes, isLoading: dataLoading } = useSWR(
     isOpen && API_URL ? `${PROXY}?action=dashboard` : null,
     fetcher
@@ -84,47 +80,17 @@ export default function TransactionModal({
     Array.isArray(customersRes?.data) ? customersRes.data : []
   , [customersRes]);
 
-  const [items, setItems] = useState<LineItem[]>([]);
-  const [customerUuid, setCustomerUuid] = useState('');
+  const [items, setItems] = useState<LineItem[]>(() => [makeItem(1)]);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [buyerName, setBuyerName] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [nextId, setNextId] = useState(1);
+  const [nextId, setNextId] = useState(2);
 
-  const selectedCustomer = useMemo(() => 
-    customers.find(c => c.uuid === customerUuid)
-  , [customers, customerUuid]);
-
-  useEffect(() => {
-    if (isOpen) {
-      setItems([makeItem(1)]);
-      setNextId(2);
-      setBuyerName('');
-      setCustomerUuid('');
-      setCustomerSearch('');
-      setDescription('');
-      setError('');
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    const query = customerSearch.toLowerCase();
-    const matched = customers.find(c => 
-      c.name.toLowerCase() === query || 
-      `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query
-    );
-    if (matched) {
-      setCustomerUuid(matched.uuid);
-      setBuyerName(matched.name);
-    } else {
-      setCustomerUuid('');
-      setBuyerName(customerSearch);
-    }
-  }, [customerSearch, customers]);
-
-  if (!isOpen) return null;
+  const query = customerSearch.toLowerCase();
+  const selectedCustomer = customers.find(c => c.name.toLowerCase() === query || `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query);
+  const customerUuid = selectedCustomer?.uuid || '';
+  const buyerName = selectedCustomer?.name || customerSearch;
 
   const updateItem = (id: number, changes: Partial<LineItem>) => {
     setItems((prev) =>
@@ -215,14 +181,14 @@ export default function TransactionModal({
       })),
     };
 
-    const batchId = 'temp-batch-' + Math.random().toString();
+    const batchId = 'temp-batch-' + crypto.randomUUID();
     const dateStr = new Date().toISOString();
     const optimisticTxItems: Transaction[] = items.map((item) => {
       const prod = products.find(p => p.uuid === item.productUuid);
       const qty = Number(item.qtyChange);
       const price = Number(item.unitPrice);
       return {
-        id: 'temp-' + Math.random().toString(),
+        id: 'temp-' + crypto.randomUUID(),
         date: dateStr,
         productUuid: item.productUuid,
         productName: prod ? prod.name : 'Unknown Product',
@@ -248,8 +214,6 @@ export default function TransactionModal({
       return json;
     });
 
-    onClose();
-
     try {
       const txKey = PROXY + '?action=transactions';
 
@@ -259,7 +223,7 @@ export default function TransactionModal({
           return undefined; // Trigger normal background fetch and cache update
         }),
         {
-          optimisticData: (currentRes: any) => {
+          optimisticData: (currentRes: { data?: Transaction[]; success?: boolean } | undefined) => {
             const currentList = Array.isArray(currentRes?.data) ? currentRes.data : [];
             return {
               ...currentRes,
@@ -276,8 +240,9 @@ export default function TransactionModal({
       mutate(`${PROXY}?action=customers`);
 
       onSuccess('Transaction recorded!');
-    } catch (err: any) {
-      setError(err.message || 'Connection failed. Check your API URL and deployment settings.');
+      onClose();
+    } catch (err: unknown) {
+      setError(errorMessage(err) || 'Connection failed. Check your API URL and deployment settings.');
     } finally {
       setLoading(false);
     }
@@ -321,7 +286,7 @@ export default function TransactionModal({
                 <span />
               </div>
 
-              {items.map((item, idx) => {
+              {items.map((item) => {
                 const prod = getProduct(item.productUuid);
                 const subtotal = (Number(item.qtyChange) || 0) * (Number(item.unitPrice) || 0);
                 const stockWarning = prod && item.type === 'Out' && Number(item.qtyChange) > prod.quantity;
@@ -508,14 +473,8 @@ export default function TransactionModal({
   );
 }
 
-function XCircle(props: any) {
+function XCircle(props: React.SVGProps<SVGSVGElement>) {
   return (
     <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>
-  );
-}
-
-function AlertTriangle(props: any) {
-  return (
-    <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
   );
 }

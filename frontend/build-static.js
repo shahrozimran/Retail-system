@@ -1,34 +1,49 @@
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import nextEnv from '@next/env';
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const nodeRequire = createRequire(import.meta.url);
 
-const apiPath = path.join(__dirname, 'src/app/api');
-const tempPath = path.join(__dirname, 'src/api-temp');
-
-let moved = false;
-try {
-  if (fs.existsSync(apiPath)) {
-    fs.renameSync(apiPath, tempPath);
-    moved = true;
-    console.log('Temporarily moved API routes out of src/app for static build...');
-  }
-  
-  console.log('Running: next build');
-  execSync('next build', { stdio: 'inherit' });
-  console.log('Static export completed successfully!');
-  
-} catch (error) {
-  if (error.code === 'EPERM') {
-    console.error('\n❌ ERROR: Access Denied (EPERM) during build.');
-    console.error('👉 If your local dev server ("npm run dev") is running in another terminal, please stop it (Ctrl + C) and try building again.');
-    console.error('Windows locks the "src/app/api" folder while Next.js dev server is actively watching it.\n');
-  } else {
-    console.error('Build execution failed:', error.message);
-  }
-  process.exitCode = 1;
-} finally {
-  if (moved && fs.existsSync(tempPath)) {
-    fs.renameSync(tempPath, apiPath);
-    console.log('Restored API routes back to src/app/api.');
+async function build() {
+  const { staticCsp } = await import('./security-headers.mjs');
+  nextEnv.loadEnvConfig(__dirname);
+  const origin = process.env.NEXT_PUBLIC_API_ORIGIN || '';
+  if (!origin || !/^https:\/\/[^/?#]+$/.test(origin)) throw new Error('Set NEXT_PUBLIC_API_ORIGIN to the hosted HTTPS Next server before an Android build.');
+  const moves = [['src/app/api', 'src/api-temp'], ['src/proxy.ts', 'src/proxy.disabled']];
+  const moved = [];
+  try {
+    for (const [source, temporary] of moves) {
+      const from = path.join(__dirname, source), to = path.join(__dirname, temporary);
+      if (fs.existsSync(to)) throw new Error(`Temporary build path already exists: ${temporary}`);
+      if (fs.existsSync(from)) { fs.renameSync(from, to); moved.push([from, to]); }
+    }
+    execFileSync(process.execPath, [nodeRequire.resolve('next/dist/bin/next'), 'build'], {
+      cwd: __dirname, stdio: 'inherit', env: { ...process.env, CAPACITOR_BUILD: '1' },
+    });
+    function secure(directory) {
+      for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+        const file = path.join(directory, entry.name);
+        if (entry.isDirectory()) secure(file);
+        else if (entry.name.endsWith('.html')) {
+          let html = fs.readFileSync(file, 'utf8');
+          const hashes = [];
+          for (const match of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+            if (!/\bsrc\s*=/i.test(match[1])) hashes.push(`'sha256-${createHash('sha256').update(match[2]).digest('base64')}'`);
+          }
+          const policy = staticCsp([...new Set(hashes)], origin).replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+          html = html.replace(/<head>/i, `<head><meta http-equiv="Content-Security-Policy" content="${policy}"><meta name="referrer" content="no-referrer">`);
+          fs.writeFileSync(file, html);
+        }
+      }
+    }
+    secure(path.join(__dirname, 'out'));
+  } finally {
+    for (const [source, temporary] of moved.reverse()) fs.renameSync(temporary, source);
   }
 }
+
+build().catch(error => { console.error(error.message); process.exitCode = 1; });

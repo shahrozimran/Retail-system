@@ -1,6 +1,8 @@
 'use client';
+import { useMounted } from '@/hooks/useMounted';
+import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import useSWR from 'swr';
 import { 
   Boxes, Wallet, AlertTriangle, TrendingUp, TrendingDown, 
@@ -8,15 +10,13 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
-const PROXY = typeof window !== 'undefined' && ((window as any).Capacitor || window.location.protocol === 'capacitor:') ? (process.env.NEXT_PUBLIC_API_URL || '') : '/api/proxy/';
 
 type Product = {
-  id: string;
+  uuid: string;
   name: string;
   sku: string;
-  stock: number;
-  minThreshold: number;
+  quantity: number;
+  minStock: number;
   price: number;
 };
 
@@ -47,31 +47,20 @@ export default function Dashboard() {
   const products: Product[] = Array.isArray(productsRes?.data) ? productsRes.data : [];
   const transactions: Transaction[] = Array.isArray(txRes?.data) ? txRes.data : [];
 
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => { setMounted(true); }, []);
+  const mounted = useMounted();
 
   const formatCurrency = (val: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
   // Derived Data
-  const lowStockItems = products.filter(p => p.stock <= p.minThreshold).slice(0, 4);
+  const lowStockItems = products.filter(p => p.quantity <= p.minStock).slice(0, 4);
   const recentTx = transactions.slice(0, 5);
   
-  // Calculate today's sales
-  const [todaySales, setTodaySales] = useState(0);
-
-  useEffect(() => {
-    if (transactions.length > 0) {
-      const today = new Date().toDateString();
-      const sales = transactions
-        .filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === today)
-        .reduce((sum, t) => sum + (t.total || 0), 0);
-      setTodaySales(sales);
-    }
-  }, [transactions]);
+  const [today] = useState(() => new Date().toDateString());
+  const todaySales = transactions.filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === today).reduce((sum, t) => sum + (t.total || 0), 0);
 
   if (!API_URL) {
-    return <div className="p-8 bg-red-950/20 text-red-500 rounded-xl border border-red-900">NEXT_PUBLIC_API_URL not configured.</div>;
+    return <div className="p-8 bg-red-950/20 text-red-500 rounded-xl border border-red-900">NEXT_PUBLIC_API_ORIGIN not configured.</div>;
   }
 
   const isLoading = statsLoading || productsLoading || txLoading;
@@ -188,20 +177,20 @@ export default function Dashboard() {
                 <div className="p-8 text-center text-neutral-600 text-xs italic">All stock levels healthy.</div>
               ) : (
                 lowStockItems.map(item => (
-                  <div key={item.id} className="p-3 flex items-center justify-between hover:bg-white/5 rounded-xl transition-colors">
+                  <div key={item.uuid} className="p-3 flex items-center justify-between hover:bg-white/5 rounded-xl transition-colors">
                     <div className="min-w-0">
                       <p className="text-sm font-bold text-white truncate">{item.name}</p>
                       <p className="text-[10px] text-neutral-500 font-medium">SKU: {item.sku}</p>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="flex items-center gap-1.5 justify-end">
-                         <span className="text-xs font-black text-red-400">{item.stock}</span>
+                         <span className="text-xs font-black text-red-400">{item.quantity}</span>
                          <span className="text-[9px] text-neutral-600 uppercase">LEFT</span>
                       </div>
                       <div className="w-16 h-1 bg-neutral-900 rounded-full mt-1.5 overflow-hidden">
                         <div 
                           className="h-full bg-red-500" 
-                          style={{ width: `${Math.max(5, (item.stock / (item.minThreshold || 1)) * 100)}%` }} 
+                          style={{ width: `${Math.max(5, (item.quantity / (item.minStock || 1)) * 100)}%` }}
                         />
                       </div>
                     </div>
@@ -233,7 +222,7 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ label, value, icon: Icon, color = "text-white", trend, trendType }: any) {
+function StatCard({ label, value, icon: Icon, color = "text-white", trend, trendType }: { label: string; value: string; icon: import('lucide-react').LucideIcon; color?: string; trend?: string; trendType?: string }) {
   return (
     <div className="bg-base-950 border border-base-800 rounded-2xl p-6 shadow-sm group hover:border-neutral-700 transition-all">
       <div className="flex justify-between items-start mb-4">
@@ -252,7 +241,7 @@ function StatCard({ label, value, icon: Icon, color = "text-white", trend, trend
   );
 }
 
-function QuickLinkCard({ title, desc, href, icon: Icon }: any) {
+function QuickLinkCard({ title, desc, href, icon: Icon }: { title: string; desc: string; href: string; icon: import('lucide-react').LucideIcon }) {
   return (
     <Link href={href} className="flex items-start gap-4 p-5 bg-base-950 border border-base-800 rounded-2xl hover:border-white/20 transition-all group">
       <div className="p-3 bg-neutral-900 rounded-xl group-hover:bg-white group-hover:text-black transition-all">

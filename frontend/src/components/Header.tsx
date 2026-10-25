@@ -1,10 +1,9 @@
 'use client';
+import { useMounted } from '@/hooks/useMounted';
 
-import { Box, Bell, LogOut, User as UserIcon, Menu } from 'lucide-react';
+import { Bell, LogOut, User as UserIcon, Menu } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || '';
+import { API_URL, logout } from '@/lib/api';
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -12,13 +11,9 @@ interface HeaderProps {
 
 export default function Header({ onMenuClick }: HeaderProps) {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useMounted();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const router = useRouter();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -31,11 +26,14 @@ export default function Header({ onMenuClick }: HeaderProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleLogout = () => {
-    // Clear the auth cookie
-    document.cookie = "auth_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
-    // Redirect to login
-    router.push('/login');
+  const handleLogout = async () => {
+    try {
+      await logout();
+      // A full navigation also discards every in-memory SWR cache entry.
+      window.location.replace('/login/');
+    } catch {
+      alert('Sign out could not be completed. Please try again.');
+    }
   };
 
   return (
