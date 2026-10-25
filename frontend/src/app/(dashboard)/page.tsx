@@ -38,6 +38,16 @@ type DashboardStats = {
 
 const fetcher = (url: string) => fetch(url).then(res => res.json());
 
+/** Computes a percentage change string from two values. Returns null when both are zero. */
+function computeTrend(current: number, previous: number): { label: string; type: 'up' | 'down' } | null {
+  if (previous === 0 && current === 0) return null;
+  if (previous === 0) return { label: `+100%`, type: 'up' };
+  const pct = ((current - previous) / Math.abs(previous)) * 100;
+  if (pct === 0) return { label: `0%`, type: 'up' };
+  const sign = pct > 0 ? '+' : '';
+  return { label: `${sign}${pct.toFixed(1)}%`, type: pct >= 0 ? 'up' : 'down' };
+}
+
 export default function Dashboard() {
   const { data: statsRes, isLoading: statsLoading } = useSWR(API_URL ? `${PROXY}?action=dashboard` : null, fetcher);
   const { data: productsRes, isLoading: productsLoading } = useSWR(API_URL ? `${PROXY}?action=products` : null, fetcher);
@@ -55,9 +65,54 @@ export default function Dashboard() {
   // Derived Data
   const lowStockItems = products.filter(p => p.quantity <= p.minStock).slice(0, 4);
   const recentTx = transactions.slice(0, 5);
-  
-  const [today] = useState(() => new Date().toDateString());
-  const todaySales = transactions.filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === today).reduce((sum, t) => sum + (t.total || 0), 0);
+
+  // Date helpers
+  const [now] = useState(() => new Date());
+  const todayStr = now.toDateString();
+  const yesterdayStr = new Date(now.getTime() - 86400000).toDateString();
+
+  // Current week = last 7 days, previous week = 7 days before that
+  const weekAgoMs = now.getTime() - 7 * 86400000;
+  const twoWeeksAgoMs = now.getTime() - 14 * 86400000;
+
+  // Today's sales vs yesterday's sales
+  const todaySales = transactions
+    .filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === todayStr)
+    .reduce((sum, t) => sum + (t.total || 0), 0);
+
+  const yesterdaySales = transactions
+    .filter(t => t.type === 'Out' && t.date && new Date(t.date).toDateString() === yesterdayStr)
+    .reduce((sum, t) => sum + (t.total || 0), 0);
+
+  // This week's stock-in value vs last week's stock-in value
+  const thisWeekStockIn = transactions
+    .filter(t => t.type === 'In' && t.date && new Date(t.date).getTime() >= weekAgoMs)
+    .reduce((sum, t) => sum + (t.total || 0), 0);
+
+  const lastWeekStockIn = transactions
+    .filter(t => {
+      if (t.type !== 'In' || !t.date) return false;
+      const ms = new Date(t.date).getTime();
+      return ms >= twoWeeksAgoMs && ms < weekAgoMs;
+    })
+    .reduce((sum, t) => sum + (t.total || 0), 0);
+
+  // Computed trends (null when no meaningful data)
+  const stockTrend = computeTrend(thisWeekStockIn, lastWeekStockIn);
+  const salesTodayTrend = computeTrend(todaySales, yesterdaySales);
+
+  // Store performance copy driven by real data
+  const salesTrendValue = salesTodayTrend;
+  const performanceTitle = salesTrendValue
+    ? salesTrendValue.type === 'up' ? 'Sales are growing' : 'Sales are down'
+    : todaySales === 0 ? 'No sales today yet' : 'Performance is steady';
+  const performanceDesc = salesTrendValue
+    ? salesTrendValue.type === 'up'
+      ? `Today\'s sales are up ${salesTrendValue.label} compared to yesterday. Keep the momentum going!`
+      : `Today\'s sales are ${salesTrendValue.label} compared to yesterday. Consider reviewing pricing or stock.`
+    : todaySales > 0
+      ? 'Sales are on par with yesterday. Track transactions to monitor performance.'
+      : 'No sales recorded today yet. Add transactions to start tracking performance.';
 
   if (!API_URL) {
     return <div className="p-8 bg-red-950/20 text-red-500 rounded-xl border border-red-900">NEXT_PUBLIC_API_ORIGIN not configured.</div>;
@@ -93,8 +148,8 @@ export default function Dashboard() {
           label="Total Stock Value" 
           value={formatCurrency(stats?.totalInventoryValue || 0)} 
           icon={Boxes} 
-          trend="+4.2%" 
-          trendType="up"
+          trend={stockTrend?.label}
+          trendType={stockTrend?.type}
         />
         <StatCard 
           label="Cash Balance" 
@@ -106,6 +161,8 @@ export default function Dashboard() {
           value={formatCurrency(todaySales)} 
           icon={TrendingUp} 
           color="text-green-400"
+          trend={salesTodayTrend?.label}
+          trendType={salesTodayTrend?.type}
         />
         <StatCard 
           label="Active Alerts" 
@@ -210,10 +267,8 @@ export default function Dashboard() {
               <TrendingUp className="w-24 h-24 text-white" />
             </div>
             <p className="text-xs font-bold text-neutral-500 uppercase tracking-widest mb-1">Store Performance</p>
-            <h4 className="text-xl font-bold text-white">Efficiency is high</h4>
-            <p className="text-sm text-neutral-400 mt-2 leading-relaxed">
-              Your inventory value has increased by <span className="text-white font-bold">8%</span> this week. Keep tracking sales to optimize stock!
-            </p>
+            <h4 className="text-xl font-bold text-white">{performanceTitle}</h4>
+            <p className="text-sm text-neutral-400 mt-2 leading-relaxed">{performanceDesc}</p>
           </div>
         </div>
 
