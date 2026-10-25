@@ -53,6 +53,9 @@ type Transaction = {
 const selectClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white appearance-none';
 const inputClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white placeholder-neutral-600';
 
+/** Removes leading zeros so "01" becomes "1", but keeps "0.5" intact. */
+const sanitizeNum = (val: string) => val.replace(/^0+(?=\d)/, '');
+
 function makeItem(id: number): LineItem {
   return { id, productUuid: '', searchQuery: '', type: 'Out', qtyChange: '1', unitPrice: '' };
 }
@@ -327,7 +330,7 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                         type="number"
                         min="1"
                         value={item.qtyChange}
-                        onChange={(e) => updateItem(item.id, { qtyChange: e.target.value })}
+                        onChange={(e) => updateItem(item.id, { qtyChange: sanitizeNum(e.target.value) })}
                         className={`${inputClass} text-center`}
                       />
 
@@ -340,7 +343,7 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                           min="0"
                           placeholder="0.00"
                           value={item.unitPrice}
-                          onChange={(e) => updateItem(item.id, { unitPrice: e.target.value })}
+                          onChange={(e) => updateItem(item.id, { unitPrice: sanitizeNum(e.target.value) })}
                           className={`${inputClass} !pl-10`}
                         />
                       </div>

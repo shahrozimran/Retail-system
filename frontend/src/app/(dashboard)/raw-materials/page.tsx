@@ -33,6 +33,9 @@ const postToAPI = async (payload: object) => {
 const inputClass =
   'w-full bg-base-900 border border-base-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white';
 
+/** Removes leading zeros so "01" becomes "1", but keeps "0.5" intact. */
+const sanitizeNum = (val: string) => val.replace(/^0+(?=\d)/, '');
+
 export default function RawMaterials() {
   const { data: response, isLoading, mutate } = useSWR(
     API_URL ? `${PROXY}?action=raw_materials` : null,
@@ -59,7 +62,7 @@ export default function RawMaterials() {
 
   const openAdd = () => {
     setModalMode('add');
-    setUuid(''); setName(''); setStock('0');
+    setUuid(''); setName(''); setStock('');
     setIsModalOpen(true);
   };
 
@@ -272,7 +275,7 @@ export default function RawMaterials() {
               </div>
               <div>
                 <label className="block text-sm font-bold text-neutral-400 mb-1.5">Initial Stock <span className="text-red-400">*</span></label>
-                <input required type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} className={inputClass} placeholder="0" />
+                <input required type="number" min="0" value={stock} onChange={(e) => setStock(sanitizeNum(e.target.value))} className={inputClass} placeholder="0" />
               </div>
               <div className="pt-4 flex gap-3">
                 <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 bg-base-900 hover:bg-base-800 text-white py-2.5 rounded-lg font-bold transition-colors border border-base-800">

@@ -358,7 +358,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
                   </div>
                   <div>
                     <label className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold">Tax Rate (%)</label>
-                    <input type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value)} className={inputClass} />
+                    <input type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value.replace(/^0+(?=\d)/, ''))} className={inputClass} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">

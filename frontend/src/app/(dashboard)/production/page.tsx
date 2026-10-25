@@ -314,7 +314,7 @@ export default function Production() {
                         min="1"
                         max={selectedProduct.potentialQuantity}
                         value={qtyToProduce}
-                        onChange={(e) => setQtyToProduce(e.target.value)}
+                        onChange={(e) => setQtyToProduce(e.target.value.replace(/^0+(?=\d)/, ''))}
                         className="w-full bg-base-950 border border-base-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white transition-all text-center text-lg font-bold"
                       />
                     </div>

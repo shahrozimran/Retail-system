@@ -520,7 +520,7 @@ export default function CustomersPage() {
                     autoFocus
                     type="number" 
                     value={payAmount} 
-                    onChange={(e) => setPayAmount(e.target.value)}
+                    onChange={(e) => setPayAmount(e.target.value.replace(/^0+(?=\d)/, ''))}
                     className="w-full px-4 py-4 bg-base-900 border border-base-800 rounded-2xl text-2xl font-black text-white focus:outline-none focus:border-white/20 transition-all"
                     placeholder="0.00"
                   />

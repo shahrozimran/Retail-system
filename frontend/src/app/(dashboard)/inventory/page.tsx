@@ -48,6 +48,9 @@ const postToAPI = async (payload: object) => {
 const inputClass =
   'w-full bg-base-900 border border-base-800 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-white focus:ring-1 focus:ring-white';
 
+/** Removes leading zeros so "01" becomes "1", but keeps "0.5" intact. */
+const sanitizeNum = (val: string) => val.replace(/^0+(?=\d)/, '');
+
 export default function Inventory() {
   const { data: response, isLoading, error: fetchError, mutate } = useSWR(
     API_URL ? `${PROXY}?action=dashboard` : null,
@@ -457,17 +460,17 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Buy Price (PKR) <span className="text-red-400">*</span></label>
-                  <input required type="number" step="0.01" min="0" value={pBuy} onChange={(e) => setPBuy(e.target.value)} className={inputClass} placeholder="0.00" />
+                  <input required type="number" step="0.01" min="0" value={pBuy} onChange={(e) => setPBuy(sanitizeNum(e.target.value))} className={inputClass} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Sale Price (PKR) <span className="text-red-400">*</span></label>
-                  <input required type="number" step="0.01" min="0" value={pSale} onChange={(e) => setPSale(e.target.value)} className={inputClass} placeholder="0.00" />
+                  <input required type="number" step="0.01" min="0" value={pSale} onChange={(e) => setPSale(sanitizeNum(e.target.value))} className={inputClass} placeholder="0.00" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Min Stock Alert</label>
-                  <input required type="number" min="0" value={pMin} onChange={(e) => setPMin(e.target.value)} className={inputClass} placeholder="10" />
+                  <input required type="number" min="0" value={pMin} onChange={(e) => setPMin(sanitizeNum(e.target.value))} className={inputClass} placeholder="10" />
                 </div>
                 <div className="flex flex-col justify-end pb-1">
                   <div className="bg-white/5 border border-white/10 rounded-lg px-4 py-2 flex items-center justify-between">
@@ -545,7 +548,7 @@ export default function Inventory() {
                               value={rm.requiredPerProduct} 
                               onChange={(e) => {
                                 const newRM = [...pRawMaterials];
-                                newRM[idx].requiredPerProduct = Number(e.target.value);
+                                newRM[idx].requiredPerProduct = Number(sanitizeNum(e.target.value));
                                 setPRawMaterials(newRM);
                               }}
                               className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
