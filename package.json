@@ -15,6 +15,7 @@
     "desktop:signing": "node desktop/scripts/setup-signing.mjs",
     "desktop:dev": "node desktop/scripts/build.mjs --dev",
     "test:desktop": "node desktop/scripts/test.mjs",
+    "test:release": "node --test desktop/scripts/release.test.mjs",
     "test": "npm run test --prefix frontend",
     "typecheck": "npm run typecheck --prefix frontend",
     "check:supabase": "npm run check:supabase --prefix frontend"

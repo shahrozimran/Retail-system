@@ -1,0 +1,106 @@
+name: Desktop release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/desktop-release.yml'
+      - 'desktop/**'
+      - '!desktop/**/*.md'
+      - 'frontend/src/**'
+      - '!frontend/src/app/api/**'
+      - '!frontend/src/lib/server.ts'
+      - '!frontend/src/lib/supabase.ts'
+      - '!frontend/src/lib/auth-cookies.ts'
+      - 'frontend/public/**'
+      - 'frontend/*config*'
+      - 'frontend/package.json'
+      - 'frontend/build-static.js'
+      - 'frontend/security-headers.mjs'
+      - 'frontend/scripts/verify-desktop.mjs'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+# Finish a release before starting the next one. Never interrupt publication.
+concurrency:
+  group: desktop-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-2022
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    env:
+      NEXT_PUBLIC_API_ORIGIN: https://retail-system-chi.vercel.app
+      CARGO_TERM_COLOR: always
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - name: Check out the exact source commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Test release versioning and publication safeguards
+        run: node --test desktop/scripts/release.test.mjs
+
+      - name: Choose the next version
+        id: release
+        run: node desktop/scripts/release.mjs prepare
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Install locked dependencies
+        if: steps.release.outputs.skip != 'true'
+        run: npm ci
+
+      - name: Check application code
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          npm test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run lint
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run typecheck
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Install stable Windows Rust toolchain
+        if: steps.release.outputs.skip != 'true'
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - name: Build and sign the Windows installer
+        if: steps.release.outputs.skip != 'true'
+        run: npm run build:desktop
+        env:
+          RUSTUP_TOOLCHAIN: stable
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Verify bundled security, native behavior and installer signature
+        if: steps.release.outputs.skip != 'true'
+        run: |
+          node frontend/scripts/verify-desktop.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm run test:desktop
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        env:
+          RUSTUP_TOOLCHAIN: stable
+
+      - name: Publish the complete signed update
+        if: steps.release.outputs.skip != 'true'
+        run: node desktop/scripts/release.mjs publish
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
