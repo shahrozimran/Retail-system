@@ -1,6 +1,15 @@
 import { headers } from 'next/headers';
+import type { Metadata, Viewport } from 'next';
 import Providers from '@/components/Providers';
+import { themeBootstrap } from '@/lib/theme';
 import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'Global Auto Parts',
+  description: 'Your connected workspace for inventory, production, sales and customer accounts.',
+};
+
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover' };
 
 export default async function RootLayout({
   children,
@@ -8,16 +17,13 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   // Request-time rendering lets Next attach the proxy's CSP nonce to its scripts.
-  if (process.env.CAPACITOR_BUILD !== '1') await headers();
+  const nonce = process.env.CAPACITOR_BUILD !== '1' ? (await headers()).get('x-nonce') ?? undefined : undefined;
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning>
       <head>
-        <meta
-          name="viewport"
-          content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
-        />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
       </head>
-      <body className="font-sans bg-base-950 text-white antialiased min-h-screen" suppressHydrationWarning>
+      <body className="font-sans antialiased min-h-screen" suppressHydrationWarning>
         <Providers>
           {children}
         </Providers>

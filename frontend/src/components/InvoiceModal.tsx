@@ -1,4 +1,5 @@
 'use client';
+import Dialog from '@/components/Dialog';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 import { DESKTOP, saveDesktopInvoice } from '@/lib/desktop';
 
@@ -42,7 +43,7 @@ type InvoiceModalProps = {
 };
 
 const inputClass =
-  'w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white placeholder-zinc-600';
+  'w-full bg-muted border border-line rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-line focus:ring-1 focus:ring-brand placeholder-subtle';
 
 export default function InvoiceModal(props: InvoiceModalProps) {
   return props.isOpen ? <InvoiceContent {...props} /> : null;
@@ -54,13 +55,13 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
   const [invoiceNo, setInvoiceNo] = useState(() => `INV-${Date.now().toString().slice(-6)}`);
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [dueDate, setDueDate] = useState('');
-  
+
   // Permanent Company Defaults
   const [companyName, setCompanyName] = useState('Global Auto Parts');
   const [companyAddress, setCompanyAddress] = useState('House 10A Street 25B New Wassan Pura Lahore');
   const [companyEmail, setCompanyEmail] = useState('aifunk62@gmail.com');
   const [companyPhone, setCompanyPhone] = useState('03114437441');
-  
+
   const [clientSearch, setClientSearch] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [clientEmail, setClientEmail] = useState('');
@@ -74,7 +75,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
     fetcher
   );
 
-  const customers: Customer[] = React.useMemo(() => 
+  const customers: Customer[] = React.useMemo(() =>
     Array.isArray(customersRes?.data) ? customersRes.data : []
   , [customersRes]);
 
@@ -107,7 +108,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
   const subtotal = selectedTx.reduce((s, t) => s + t.total, 0);
   const tax = subtotal * (Number(taxRate) / 100);
 
-  const fmt = (v: number) => 
+  const fmt = (v: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(v);
 
   const toggleSelect = (id: string) => {
@@ -214,10 +215,10 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
         columnStyles: {
           0: { cellWidth: 10, textColor: [120, 120, 120] },
           1: { cellWidth: 'auto', fontStyle: 'bold', textColor: [0, 0, 0] },
-          2: { cellWidth: 16 }, 
-          3: { cellWidth: 20 }, 
+          2: { cellWidth: 16 },
+          3: { cellWidth: 20 },
           4: { cellWidth: 14 },
-          5: { cellWidth: 12 }, 
+          5: { cellWidth: 12 },
           6: { cellWidth: 26 },
           7: { cellWidth: 30, fontStyle: 'bold', textColor: [0, 0, 0] },
         },
@@ -235,9 +236,9 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
 
       let ty = finalY;
       drawTotalRow('Subtotal', fmt(subtotal), ty);
-      
+
       if (Number(taxRate) > 0) {
-        ty += 7; 
+        ty += 7;
         drawTotalRow(`Tax (${taxRate}%)`, fmt(tax), ty);
       }
 
@@ -247,9 +248,9 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
         drawTotalRow(`Account balance ${balanceType} (separate)`, fmt(selectedCustomer.balance), ty);
       }
 
-      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3); 
+      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3);
       ty += 8;
-      
+
       const totalDue = subtotal + tax;
       drawTotalRow('TOTAL DUE', fmt(totalDue), ty + 2, true, true);
 
@@ -271,75 +272,80 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/85 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-4xl bg-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl z-10 mx-4 max-h-[95vh] flex flex-col">
+    <Dialog onClose={onClose} label="Generate invoice" className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={onClose} />
+      <div className="modal-panel relative w-full max-w-4xl bg-surface border border-line rounded-2xl shadow-dialog z-10 mx-4 max-h-[95vh] flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-zinc-800 bg-zinc-900/60 rounded-t-2xl shrink-0">
+        <div className="flex items-center justify-between p-5 border-b border-line bg-muted/60 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-white rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-black" />
+            <div className="w-9 h-9 bg-brand rounded-lg flex items-center justify-center">
+              <FileText className="w-5 h-5 text-on-brand" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white">Generate Invoice PDF</h3>
-              <p className="text-xs text-zinc-500">{selectedTx.length} items selected for invoice</p>
+              <h3 className="text-lg font-semibold text-ink">Generate Invoice PDF</h3>
+              <p className="text-xs text-subtle">{selectedTx.length} items selected for invoice</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-subtle hover:text-ink transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-col sm:flex-row flex-1 overflow-y-auto sm:overflow-hidden">
           {/* Left Side: Transaction Selection */}
-          <div className="w-1/2 border-r border-zinc-800 flex flex-col overflow-hidden">
-            <div className="p-4 border-b border-zinc-800 bg-zinc-900/30 space-y-3">
+          <div className="w-full sm:w-1/2 border-b sm:border-b-0 sm:border-r border-line flex flex-col shrink-0 sm:shrink min-h-[240px] max-h-[360px] sm:max-h-none overflow-hidden">
+            <div className="p-4 border-b border-line bg-muted/30 space-y-3">
               <div className="flex items-center justify-between">
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wider">Select Transactions</p>
+                <p className="text-xs font-semibold text-subtle uppercase tracking-wider">Select Transactions</p>
                 <div className="flex gap-2">
-                  <button onClick={selectAll} className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded transition-colors uppercase font-bold">Select All</button>
-                  <button onClick={deselectAll} className="text-[10px] bg-zinc-800 hover:bg-zinc-700 text-zinc-300 px-2 py-1 rounded transition-colors uppercase font-bold">Deselect All</button>
+                  <button onClick={selectAll} className="text-[11px] bg-emphasis hover:bg-emphasis text-body px-2 py-1 rounded transition-colors uppercase font-semibold">Select All</button>
+                  <button onClick={deselectAll} className="text-[11px] bg-emphasis hover:bg-emphasis text-body px-2 py-1 rounded transition-colors uppercase font-semibold">Deselect All</button>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-2">
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={`${inputClass} !py-1.5`} placeholder="From" title="From Date" />
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={`${inputClass} !py-1.5`} placeholder="To" title="To Date" />
               </div>
-              
+
               <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={includeExpenses} onChange={(e) => setIncludeExpenses(e.target.checked)} className="w-3.5 h-3.5 rounded bg-zinc-900 border-zinc-700" />
-                <span className="text-xs text-zinc-400">Include Expenses (Stock In)</span>
+                <input type="checkbox" checked={includeExpenses} onChange={(e) => setIncludeExpenses(e.target.checked)} className="w-3.5 h-3.5 rounded bg-muted border-line" />
+                <span className="text-xs text-subtle">Include Expenses (Stock In)</span>
               </label>
             </div>
 
-            <div className="flex-1 overflow-y-auto divide-y divide-zinc-900/50">
+            <div className="flex-1 overflow-y-auto divide-y divide-line/50">
               {filteredTx.length === 0 ? (
-                <div className="p-10 text-center text-zinc-600 text-sm italic">No transactions match filters</div>
+                <div className="p-10 text-center text-subtle text-sm italic">No transactions match filters</div>
               ) : (
                 filteredTx.map((t) => (
-                  <div 
-                    key={t.id} 
+                  <div
+                    key={t.id}
+                    role="checkbox"
+                    tabIndex={0}
+                    aria-checked={selectedIds.has(t.id)}
+                    aria-label={`${t.productName}, ${new Date(t.date).toLocaleDateString()}, ${fmt(t.total)}`}
+                    onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggleSelect(t.id); } }}
                     onClick={() => toggleSelect(t.id)}
-                    className={`p-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-zinc-900/50 ${selectedIds.has(t.id) ? 'bg-zinc-900/30' : ''}`}
+                    className={`p-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(t.id) ? 'bg-muted/30' : ''}`}
                   >
                     <div className="mt-1">
                       {selectedIds.has(t.id) ? (
-                        <CheckSquare className="w-4 h-4 text-white" />
+                        <CheckSquare className="w-4 h-4 text-ink" />
                       ) : (
-                        <Square className="w-4 h-4 text-zinc-700" />
+                        <Square className="w-4 h-4 text-subtle" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex justify-between items-start gap-2">
-                        <p className="text-sm font-bold text-white truncate">{t.productName}</p>
-                        <p className="text-sm font-bold text-white tabular-nums shrink-0">{fmt(t.total)}</p>
+                        <p className="text-sm font-semibold text-ink truncate">{t.productName}</p>
+                        <p className="text-sm font-semibold text-ink tabular-nums shrink-0">{fmt(t.total)}</p>
                       </div>
-                      <div className="flex justify-between text-[11px] text-zinc-500 mt-0.5">
+                      <div className="flex justify-between text-[11px] text-subtle mt-0.5">
                         <p>{new Date(t.date).toLocaleDateString()}</p>
                         <p>{t.qtyChange} units &bull; {fmt(t.unitPrice)}</p>
                       </div>
-                      {t.buyerName && <p className="text-[10px] text-zinc-400 mt-1 italic truncate">Buyer: {t.buyerName}</p>}
+                      {t.buyerName && <p className="text-[11px] text-subtle mt-1 italic truncate">Buyer: {t.buyerName}</p>}
                     </div>
                   </div>
                 ))
@@ -348,36 +354,36 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
           </div>
 
           {/* Right Side: Invoice Configuration */}
-          <div className="w-1/2 flex flex-col overflow-hidden bg-zinc-900/10">
+          <div className="w-full sm:w-1/2 flex flex-col shrink-0 sm:shrink sm:overflow-hidden bg-muted/10">
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
               {/* Invoice Meta */}
               <div className="space-y-3">
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Invoice Details</p>
+                <p className="text-xs font-semibold text-subtle uppercase tracking-wider flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Invoice Details</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold">Invoice No.</label>
-                    <input type="text" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={inputClass} />
+                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Invoice No.</label>
+                    <input aria-label="Invoice No." type="text" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold">Tax Rate (%)</label>
-                    <input type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value.replace(/^0+(?=\d)/, ''))} className={inputClass} />
+                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Tax Rate (%)</label>
+                    <input aria-label="Tax Rate (%)" type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value.replace(/^0+(?=\d)/, ''))} className={inputClass} />
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold">Issue Date</label>
-                    <input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className={inputClass} />
+                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Issue Date</label>
+                    <input aria-label="Issue Date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className={inputClass} />
                   </div>
                   <div>
-                    <label className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold">Due Date</label>
-                    <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
+                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Due Date</label>
+                    <input aria-label="Due Date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
                   </div>
                 </div>
               </div>
 
               {/* Company Info */}
               <div className="space-y-3">
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Your Business</p>
+                <p className="text-xs font-semibold text-subtle uppercase tracking-wider flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Your Business</p>
                 <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputClass} placeholder="Company Name" />
                 <input type="text" value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} className={inputClass} placeholder="Address" />
                 <div className="grid grid-cols-2 gap-3">
@@ -388,7 +394,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
 
               {/* Client Info */}
               <div className="space-y-3">
-                <p className="text-xs font-bold text-zinc-500 uppercase tracking-wider flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Client (Bill To)</p>
+                <p className="text-xs font-semibold text-subtle uppercase tracking-wider flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Client (Bill To)</p>
                 <div className="relative">
                   <input
                     required
@@ -399,7 +405,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
                     placeholder="Search existing or type new name..."
                     list="invoice-customers-datalist"
                   />
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
                   <datalist id="invoice-customers-datalist">
                     {customers.map(c => (
                       <option key={c.uuid} value={`[${c.phone || 'No Phone'}] ${c.name}`} />
@@ -408,33 +414,33 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
                 </div>
                 {selectedCustomer && (
                   <div className="mt-2 space-y-2">
-                    <div className="p-2 bg-blue-950/20 border border-blue-900/50 rounded-lg flex items-center justify-between group/bal">
+                    <div className="p-2 bg-info-soft border border-info/20 rounded-lg flex items-center justify-between group/bal">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider">Current Account Balance:</span>
-                        <button 
+                        <span className="text-[11px] font-semibold text-info uppercase tracking-wider">Current Account Balance:</span>
+                        <button
                           type="button"
                           onClick={() => setShowBalanceValue(!showBalanceValue)}
-                          className="p-1 text-blue-400/50 hover:text-blue-400 transition-colors"
+                          className="p-1 text-info hover:text-info transition-colors"
                           title={showBalanceValue ? "Hide Balance" : "Show Balance"}
                         >
                           {showBalanceValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                         </button>
                       </div>
-                      <span className={`text-xs font-black transition-all ${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500') : 'text-blue-400/30'}`}>
+                      <span className={`text-xs font-semibold transition-all ${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-success' : selectedCustomer.balance < 0 ? 'text-danger' : 'text-subtle') : 'text-info'}`}>
                         {showBalanceValue ? fmt(selectedCustomer.balance) : 'PKR ••••'}
                       </span>
                     </div>
                     <label className="flex items-center gap-2 cursor-pointer select-none group">
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includePreviousBalance ? 'bg-white border-white' : 'bg-transparent border-zinc-700 group-hover:border-zinc-500'}`}>
-                        {includePreviousBalance && <CheckSquare className="w-3.5 h-3.5 text-black" />}
-                        <input 
-                          type="checkbox" 
-                          className="hidden" 
-                          checked={includePreviousBalance} 
-                          onChange={(e) => setIncludePreviousBalance(e.target.checked)} 
+                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includePreviousBalance ? 'bg-brand border-line' : 'bg-transparent border-line group-hover:border-line'}`}>
+                        {includePreviousBalance && <CheckSquare className="w-3.5 h-3.5 text-on-brand" />}
+                        <input
+                          type="checkbox"
+                          className="hidden"
+                          checked={includePreviousBalance}
+                          onChange={(e) => setIncludePreviousBalance(e.target.checked)}
                         />
                       </div>
-                      <span className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-300 transition-colors uppercase tracking-tight">Show account balance separately</span>
+                      <span className="text-[11px] font-semibold text-subtle group-hover:text-body transition-colors uppercase tracking-tight">Show account balance separately</span>
                     </label>
                   </div>
                 )}
@@ -444,46 +450,46 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
 
               {/* Notes */}
               <div>
-                <label className="block text-[10px] text-zinc-500 mb-1 uppercase font-bold">Notes / Terms</label>
-                <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={`${inputClass} resize-none`} />
+                <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Notes / Terms</label>
+                <textarea aria-label="Notes / Terms" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={`${inputClass} resize-none`} />
               </div>
             </div>
 
             {/* Footer Summary */}
-            <div className="p-5 border-t border-zinc-800 bg-zinc-900/40">
+            <div className="p-5 border-t border-line bg-muted/40">
               <div className="flex items-center justify-between mb-4">
                 <div className="text-xs">
-                  <p className="text-zinc-500 uppercase font-bold tracking-widest">Subtotal</p>
-                  <p className="text-zinc-400 font-medium">{fmt(subtotal)}</p>
+                  <p className="text-subtle uppercase font-semibold tracking-wide">Subtotal</p>
+                  <p className="text-subtle font-medium">{fmt(subtotal)}</p>
                 </div>
                 <div className="text-right">
                   {selectedCustomer && (
-                    <div className="flex flex-col items-end gap-0.5 mb-1 text-[10px]">
-                       <div className="flex gap-3 text-zinc-500">
+                    <div className="flex flex-col items-end gap-0.5 mb-1 text-[11px]">
+                       <div className="flex gap-3 text-subtle">
                          <span>Subtotal:</span>
-                         <span className="text-zinc-400 font-mono">{fmt(subtotal)}</span>
+                         <span className="text-subtle font-mono">{fmt(subtotal)}</span>
                        </div>
                        {includePreviousBalance && (
-                         <div className="flex gap-3 text-zinc-500">
+                         <div className="flex gap-3 text-subtle">
                            <span>Balance:</span>
-                           <span className={`${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-zinc-400') : 'text-zinc-600'} font-mono`}>
+                           <span className={`${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-success' : selectedCustomer.balance < 0 ? 'text-danger' : 'text-subtle') : 'text-subtle'} font-mono`}>
                              {showBalanceValue ? fmt(selectedCustomer.balance) : 'PKR ••••'}
                            </span>
                          </div>
                        )}
-                       <div className="w-16 h-px bg-zinc-800 my-0.5" />
+                       <div className="w-16 h-px bg-emphasis my-0.5" />
                     </div>
                   )}
-                  <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest">Total Due</p>
-                  <p className="text-2xl font-bold text-white tabular-nums">{fmt(subtotal + tax)}</p>
+                  <p className="text-[11px] text-subtle uppercase font-semibold tracking-wide">Total Due</p>
+                  <p className="text-2xl font-semibold text-ink tabular-nums">{fmt(subtotal + tax)}</p>
                 </div>
               </div>
               <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white py-2.5 rounded-lg font-bold transition-colors border border-zinc-800 text-sm">Cancel</button>
-                <button 
+                <button onClick={onClose} className="flex-1 bg-muted hover:bg-emphasis text-ink py-2.5 rounded-lg font-semibold transition-colors border border-line text-sm">Cancel</button>
+                <button
                   onClick={() => handleGenerate()}
-                  disabled={generating || selectedTx.length === 0 || !clientName} 
-                  className="flex-1 bg-white hover:bg-zinc-200 disabled:opacity-50 text-black py-2.5 rounded-lg font-bold transition-colors shadow-lg flex items-center justify-center gap-2 text-sm"
+                  disabled={generating || selectedTx.length === 0 || !clientName}
+                  className="flex-1 bg-brand hover:bg-brand-hover disabled:opacity-50 text-on-brand py-2.5 rounded-lg font-semibold transition-colors shadow-sm flex items-center justify-center gap-2 text-sm"
                 >
                   {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Export PDF {selectedTx.length > 0 && `(${selectedTx.length})`}
@@ -493,7 +499,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
                     onClick={() => handleGenerate(true)}
                     disabled={generating || selectedTx.length === 0 || !clientName}
                     title="Open the invoice in your PDF reader to preview and print"
-                    className="bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white px-4 rounded-lg border border-zinc-700 flex items-center gap-2 text-sm font-bold"
+                    className="bg-muted hover:bg-emphasis disabled:opacity-50 text-ink px-4 rounded-lg border border-line flex items-center gap-2 text-sm font-semibold"
                   >
                     <Printer className="w-4 h-4" /> Print PDF
                   </button>
@@ -503,6 +509,6 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
           </div>
         </div>
       </div>
-    </div>
+    </Dialog>
   );
 }

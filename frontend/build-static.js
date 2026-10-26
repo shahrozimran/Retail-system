@@ -14,6 +14,14 @@ async function build() {
   nextEnv.loadEnvConfig(__dirname);
   const origin = process.env.NEXT_PUBLIC_API_ORIGIN || '';
   if (!origin || !/^https:\/\/[^/?#]+$/.test(origin)) throw new Error('Set NEXT_PUBLIC_API_ORIGIN to the hosted HTTPS Next server before a native build.');
+  // Generated web/dev route validators still reference API routes that the
+  // native export temporarily moves. Regenerate them for this target.
+  const nextOutput = path.resolve(__dirname, '.next');
+  for (const directory of ['types', 'dev/types']) {
+    const generated = path.resolve(nextOutput, directory);
+    if (!generated.startsWith(nextOutput + path.sep)) throw new Error('Invalid generated types path.');
+    fs.rmSync(generated, { recursive: true, force: true });
+  }
   const moves = [['src/app/api', 'src/api-temp'], ['src/proxy.ts', 'src/proxy.disabled']];
   const moved = [];
   try {

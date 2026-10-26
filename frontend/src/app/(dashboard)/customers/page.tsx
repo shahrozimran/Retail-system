@@ -1,13 +1,16 @@
 'use client';
+import Dialog from '@/components/Dialog';
+import PageHeading from '@/components/PageHeading';
+import DataNotice from '@/components/DataNotice';
 import { useMounted } from '@/hooks/useMounted';
 import { errorMessage } from '@/lib/errors';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 
 import React, { useState } from 'react';
 import useSWR, { mutate } from 'swr';
-import { 
+import {
   Users, UserPlus, Search, Loader2,
-  TrendingUp, TrendingDown, Clock, Plus, X, 
+  TrendingUp, TrendingDown, Clock, Plus, X,
   Phone, Mail, Trash2, History
 } from 'lucide-react';
 
@@ -46,7 +49,7 @@ const postToAPI = async (payload: Record<string, unknown>) => {
 };
 
 export default function CustomersPage() {
-  const { data: custResponse, isLoading: custLoading, mutate: mutateCustomers } = useSWR(
+  const { data: custResponse, error: customersError, isLoading: custLoading, mutate: mutateCustomers } = useSWR(
     API_URL ? `${PROXY}?action=customers` : null,
     fetcher
   );
@@ -74,7 +77,7 @@ export default function CustomersPage() {
   const formatCurrency = (val: number) =>
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
 
-  const filteredCustomers = customers.filter(c => 
+  const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.phone.includes(searchTerm)
   );
@@ -142,8 +145,8 @@ export default function CustomersPage() {
       balance: selectedCustomer.balance + balanceChange
     };
 
-    const updatePromise = postToAPI({ 
-      action: 'record_customer_payment', 
+    const updatePromise = postToAPI({
+      action: 'record_customer_payment',
       customerUuid: selectedCustomer.uuid,
       amount: amountNum,
       type: payType,
@@ -158,7 +161,7 @@ export default function CustomersPage() {
       setPayAmount('');
       setPayDesc('');
 
-      const updatedCustomersData = customers.map(c => 
+      const updatedCustomersData = customers.map(c =>
         c.uuid === selectedCustomer.uuid ? updatedCustomerOptimistic : c
       );
 
@@ -256,56 +259,59 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6 fade-in pb-12">
+      <PageHeading title="Customers" description="Manage relationships, account balances and payment history." />
+      {customersError && <DataNotice onRetry={() => mutateCustomers()} />}
       {/* Summary Header */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="p-6 rounded-2xl bg-base-950 border border-base-800 shadow-sm flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-green-950/20 text-green-400">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger">
+        <div className="p-6 rounded-2xl bg-surface border border-line shadow-sm flex items-center gap-4"><div className="p-3 rounded-xl bg-brand-soft text-brand-ink"><Users className="w-6 h-6" /></div><div><p className="text-xs text-subtle font-medium">Customer accounts</p><p className="text-2xl font-semibold tabular-nums mt-1">{customers.length}</p><p className="text-[11px] text-subtle mt-1">Registered in your workspace</p></div></div>
+        <div className="p-6 rounded-2xl bg-surface border border-line shadow-sm flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-success-soft text-success">
             <TrendingUp className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Customer Receivables</p>
-            <p className="text-2xl font-black text-white tabular-nums">{formatCurrency(totalReceivable)}</p>
-            <p className="text-[10px] text-neutral-600 mt-1">Amount customers owe you</p>
+            <p className="text-xs text-subtle font-semibold uppercase tracking-wider">Customer Receivables</p>
+            <p className="text-2xl font-semibold text-ink tabular-nums">{formatCurrency(totalReceivable)}</p>
+            <p className="text-[11px] text-subtle mt-1">Amount customers owe you</p>
           </div>
         </div>
-        <div className="p-6 rounded-2xl bg-base-950 border border-base-800 shadow-sm flex items-center gap-4">
-          <div className="p-3 rounded-xl bg-red-950/20 text-red-400">
+        <div className="p-6 rounded-2xl bg-surface border border-line shadow-sm flex items-center gap-4">
+          <div className="p-3 rounded-xl bg-danger-soft text-danger">
             <TrendingDown className="w-6 h-6" />
           </div>
           <div>
-            <p className="text-xs text-neutral-500 font-bold uppercase tracking-wider">Your Payables</p>
-            <p className="text-2xl font-black text-white tabular-nums">{formatCurrency(totalPayable)}</p>
-            <p className="text-[10px] text-neutral-600 mt-1">Amount you owe to customers</p>
+            <p className="text-xs text-subtle font-semibold uppercase tracking-wider">Your Payables</p>
+            <p className="text-2xl font-semibold text-ink tabular-nums">{formatCurrency(totalPayable)}</p>
+            <p className="text-[11px] text-subtle mt-1">Amount you owe to customers</p>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="bg-base-950 border border-base-800 rounded-2xl overflow-hidden shadow-xl">
-        <div className="p-5 border-b border-base-800 bg-base-900/50 flex flex-col sm:flex-row items-center justify-between gap-4">
+      <div className="bg-surface border border-line rounded-2xl overflow-hidden shadow-panel">
+        <div className="p-5 border-b border-line bg-muted/50 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center">
-              <Users className="w-5 h-5 text-black" />
+            <div className="w-10 h-10 rounded-xl bg-brand flex items-center justify-center">
+              <Users className="w-5 h-5 text-on-brand" />
             </div>
             <div>
-              <h2 className="text-xl font-black text-white">Customer Accounts</h2>
-              <p className="text-xs text-neutral-500">{customers.length} registered customers</p>
+              <h2 className="text-xl font-semibold text-ink">Customer Accounts</h2>
+              <p className="text-xs text-subtle">{customers.length} registered customers</p>
             </div>
           </div>
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
-              <input 
-                type="text" 
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-subtle" />
+              <input
+                type="text"
                 placeholder="Search name or phone..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-base-900 border border-base-800 rounded-xl text-sm text-white focus:outline-none focus:border-white/20 transition-all"
+                className="w-full pl-10 pr-4 py-2 bg-muted border border-line rounded-xl text-sm text-ink focus:outline-none focus:border-line transition-all"
               />
             </div>
-            <button 
+            <button
               onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 bg-white text-black px-5 py-2.5 rounded-xl text-sm font-bold hover:bg-neutral-200 transition-all shadow-lg active:scale-95"
+              className="flex items-center gap-2 bg-brand text-on-brand px-5 py-2.5 rounded-xl text-sm font-semibold hover:bg-brand-hover transition-all shadow-sm active:scale-95"
             >
               <UserPlus className="w-4 h-4" />
               Add Customer
@@ -316,12 +322,12 @@ export default function CustomersPage() {
         <div className="overflow-x-auto">
           {custLoading ? (
             <div className="p-20 flex justify-center">
-              <Loader2 className="w-10 h-10 animate-spin text-neutral-500" />
+              <Loader2 className="w-10 h-10 animate-spin text-subtle" />
             </div>
           ) : (
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[650px]">
               <thead>
-                <tr className="bg-base-900 text-neutral-500 text-[10px] uppercase tracking-widest font-bold border-b border-base-800">
+                <tr className="bg-muted text-subtle text-[11px] uppercase tracking-wide font-semibold border-b border-line">
                   <th className="px-6 py-4">Customer Name</th>
                   <th className="px-6 py-4">Contact</th>
                   <th className="px-6 py-4 text-right">Net Balance</th>
@@ -329,46 +335,47 @@ export default function CustomersPage() {
                   <th className="px-6 py-4"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-base-800">
+              <tbody className="divide-y divide-line">
                 {filteredCustomers.map((c) => (
-                  <tr key={c.uuid} className="group hover:bg-base-900/50 transition-colors cursor-pointer" onClick={() => { setSelectedCustomer(c); setIsLedgerOpen(true); }}>
+                  <tr key={c.uuid} className="group hover:bg-muted/50 transition-colors cursor-pointer" onClick={() => { setSelectedCustomer(c); setIsLedgerOpen(true); }}>
                     <td className="px-6 py-5">
-                      <p className="font-bold text-white">{c.name}</p>
-                      <p className="text-[10px] text-neutral-500 uppercase tracking-tighter font-mono">UID: {c.uuid.split('-')[0]}</p>
+                      <p className="font-semibold text-ink">{c.name}</p>
+                      <p className="text-[11px] text-subtle uppercase tracking-tighter font-mono">UID: {c.uuid.split('-')[0]}</p>
                     </td>
                     <td className="px-6 py-5">
                       <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2 text-xs text-neutral-400">
+                        <div className="flex items-center gap-2 text-xs text-subtle">
                           <Phone className="w-3 h-3" /> {c.phone || 'No phone'}
                         </div>
                         {c.email && (
-                          <div className="flex items-center gap-2 text-xs text-neutral-400">
+                          <div className="flex items-center gap-2 text-xs text-subtle">
                             <Mail className="w-3 h-3" /> {c.email}
                           </div>
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <p className={`text-sm font-black tabular-nums ${c.balance > 0 ? 'text-green-400' : c.balance < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
+                      <p className={`text-sm font-semibold tabular-nums ${c.balance > 0 ? 'text-success' : c.balance < 0 ? 'text-danger' : 'text-subtle'}`}>
                         {c.balance > 0 ? '+' : ''}{formatCurrency(c.balance)}
                       </p>
-                      <p className="text-[10px] text-neutral-600 uppercase font-bold tracking-tight">
+                      <p className="text-[11px] text-subtle uppercase font-semibold tracking-tight">
                         {c.balance > 0 ? 'Customer Owes You' : c.balance < 0 ? 'You Owe Customer' : 'Settled'}
                       </p>
                     </td>
                     <td className="px-6 py-5 text-center">
-                      <span className="px-2 py-1 rounded bg-base-900 text-neutral-400 text-[10px] font-bold uppercase border border-base-800">
+                      <span className="px-2 py-1 rounded bg-muted text-subtle text-[11px] font-semibold uppercase border border-line">
                         {c.status}
                       </span>
                     </td>
                     <td className="px-6 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-2 hover:bg-base-800 rounded-lg text-white transition-colors border border-base-800">
+                      <div className="flex items-center justify-end gap-2 opacity-100 transition-opacity">
+                        <button aria-label={`View ${c.name} account`} className="p-2 hover:bg-emphasis rounded-lg text-ink transition-colors border border-line">
                           <History className="w-4 h-4" />
                         </button>
-                        <button 
+                        <button
+                          aria-label={`Delete ${c.name}`}
                           onClick={(e) => { e.stopPropagation(); handleDeleteCustomer(c.uuid); }}
-                          className="p-2 hover:bg-red-950/30 rounded-lg text-red-500 transition-colors border border-red-900/30"
+                          className="p-2 hover:bg-danger-soft rounded-lg text-danger transition-colors border border-danger/20"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -378,7 +385,7 @@ export default function CustomersPage() {
                 ))}
                 {filteredCustomers.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-6 py-20 text-center text-neutral-600">
+                    <td colSpan={5} className="px-6 py-20 text-center text-subtle">
                       <Users className="w-12 h-12 mx-auto mb-4 opacity-10" />
                       <p className="text-sm">No customers found.</p>
                     </td>
@@ -392,87 +399,87 @@ export default function CustomersPage() {
 
       {/* Add Customer Modal */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsAddModalOpen(false)} />
-          <form onSubmit={handleAddCustomer} className="relative w-full max-w-md bg-base-950 border border-base-800 rounded-3xl shadow-2xl z-10 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-base-800 flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">New Customer Profile</h3>
-              <button type="button" onClick={() => setIsAddModalOpen(false)} className="text-neutral-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
+        <Dialog onClose={() => setIsAddModalOpen(false)} label="Add customer" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={() => setIsAddModalOpen(false)} />
+          <form onSubmit={handleAddCustomer} className="modal-panel relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-dialog z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-line flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-ink">New Customer Profile</h3>
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="text-subtle hover:text-ink transition-colors"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 mb-1 uppercase tracking-widest">Customer Name</label>
-                <input 
+                <label className="block text-[11px] font-semibold text-subtle mb-1 uppercase tracking-wide">Customer Name</label>
+                <input aria-label="Customer Name"
                   autoFocus
                   required
-                  type="text" 
-                  value={newName} 
+                  type="text"
+                  value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  className="w-full px-4 py-3 bg-base-900 border border-base-800 rounded-xl text-white focus:outline-none focus:border-white/20 transition-all"
+                  className="w-full px-4 py-3 bg-muted border border-line rounded-xl text-ink focus:outline-none focus:border-line transition-all"
                   placeholder="e.g. Usman Khan"
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-bold text-neutral-500 mb-1 uppercase tracking-widest">Phone Number (Optional)</label>
-                <input 
-                  type="text" 
-                  value={newPhone} 
+                <label className="block text-[11px] font-semibold text-subtle mb-1 uppercase tracking-wide">Phone Number (Optional)</label>
+                <input aria-label="Phone Number (Optional)"
+                  type="text"
+                  value={newPhone}
                   onChange={(e) => setNewPhone(e.target.value)}
-                  className="w-full px-4 py-3 bg-base-900 border border-base-800 rounded-xl text-white focus:outline-none focus:border-white/20 transition-all"
+                  className="w-full px-4 py-3 bg-muted border border-line rounded-xl text-ink focus:outline-none focus:border-line transition-all"
                   placeholder="e.g. +92 300 1234567"
                 />
               </div>
             </div>
-            <div className="p-6 bg-base-900/50 flex gap-3">
-              <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 px-4 py-3 border border-base-800 rounded-xl font-bold text-sm text-neutral-400 hover:bg-base-800 transition-all">Cancel</button>
-              <button 
-                type="submit" 
+            <div className="p-6 bg-muted/50 flex gap-3">
+              <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 px-4 py-3 border border-line rounded-xl font-semibold text-sm text-subtle hover:bg-emphasis transition-all">Cancel</button>
+              <button
+                type="submit"
                 disabled={isSubmitting}
-                className="flex-1 px-4 py-3 bg-white text-black rounded-xl font-bold text-sm hover:bg-neutral-200 transition-all flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-3 bg-brand text-on-brand rounded-xl font-semibold text-sm hover:bg-brand-hover transition-all flex items-center justify-center gap-2"
               >
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Create Customer'}
               </button>
             </div>
           </form>
-        </div>
+        </Dialog>
       )}
 
       {/* Customer Ledger Modal */}
       {isLedgerOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsLedgerOpen(false)} />
-          <div className="relative w-full max-w-3xl bg-base-950 border border-base-800 rounded-3xl shadow-2xl z-10 flex flex-col h-[85vh] animate-in slide-in-from-bottom-8 duration-300">
+        <Dialog onClose={() => setIsLedgerOpen(false)} label="Customer account ledger" className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={() => setIsLedgerOpen(false)} />
+          <div className="modal-panel relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-dialog z-10 flex flex-col h-[85vh] animate-in slide-in-from-bottom-8 duration-300">
             {/* Header */}
-            <div className="p-6 border-b border-base-800 flex items-center justify-between">
+            <div className="p-6 border-b border-line flex items-center justify-between">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-white text-black flex items-center justify-center text-xl font-black">
+                <div className="w-12 h-12 rounded-2xl bg-brand text-on-brand flex items-center justify-center text-xl font-semibold">
                   {selectedCustomer.name.charAt(0)}
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-white">{selectedCustomer.name}</h3>
-                  <p className="text-xs text-neutral-500 font-mono tracking-tighter">{selectedCustomer.phone}</p>
+                  <h3 className="text-xl font-semibold text-ink">{selectedCustomer.name}</h3>
+                  <p className="text-xs text-subtle font-mono tracking-tighter">{selectedCustomer.phone}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <div className="text-right mr-4">
-                  <p className="text-[10px] text-neutral-500 font-bold uppercase tracking-widest">Current Balance</p>
-                  <p className={`text-xl font-black tabular-nums ${selectedCustomer.balance > 0 ? 'text-green-400' : selectedCustomer.balance < 0 ? 'text-red-400' : 'text-neutral-500'}`}>
+                  <p className="text-[11px] text-subtle font-semibold uppercase tracking-wide">Current Balance</p>
+                  <p className={`text-xl font-semibold tabular-nums ${selectedCustomer.balance > 0 ? 'text-success' : selectedCustomer.balance < 0 ? 'text-danger' : 'text-subtle'}`}>
                     {formatCurrency(selectedCustomer.balance)}
                   </p>
                 </div>
-                <button onClick={() => setIsLedgerOpen(false)} className="p-2 hover:bg-base-900 rounded-full transition-colors text-neutral-400 hover:text-white"><X className="w-6 h-6" /></button>
+                <button onClick={() => setIsLedgerOpen(false)} className="p-2 hover:bg-muted rounded-full transition-colors text-subtle hover:text-ink"><X className="w-6 h-6" /></button>
               </div>
             </div>
 
             {/* Actions Bar */}
-            <div className="p-4 bg-base-900/30 border-b border-base-800 flex items-center justify-between px-6">
+            <div className="p-4 bg-muted/30 border-b border-line flex items-center justify-between px-6">
               <div className="flex items-center gap-2">
-                <History className="w-4 h-4 text-neutral-500" />
-                <span className="text-xs font-bold text-neutral-500 uppercase tracking-widest">Transaction History</span>
+                <History className="w-4 h-4 text-subtle" />
+                <span className="text-xs font-semibold text-subtle uppercase tracking-wide">Transaction History</span>
               </div>
-              <button 
+              <button
                 onClick={() => setIsPaymentModalOpen(true)}
-                className="flex items-center gap-2 bg-white text-black px-4 py-2 rounded-xl text-xs font-bold hover:bg-neutral-200 transition-all shadow-lg"
+                className="flex items-center gap-2 bg-brand text-on-brand px-4 py-2 rounded-xl text-xs font-semibold hover:bg-brand-hover transition-all shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 New Entry
@@ -484,27 +491,27 @@ export default function CustomersPage() {
               <LedgerList customerUuid={selectedCustomer.uuid} formatCurrency={formatCurrency} />
             </div>
           </div>
-        </div>
+        </Dialog>
       )}
 
       {/* Record Entry Modal */}
       {isPaymentModalOpen && selectedCustomer && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsPaymentModalOpen(false)} />
-          <form onSubmit={handleRecordPayment} className="relative w-full max-w-md bg-base-950 border border-base-800 rounded-3xl shadow-2xl z-10 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-base-800 flex items-center justify-between">
-              <h3 className="text-lg font-black text-white">Record Entry</h3>
-              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="text-neutral-500 hover:text-white transition-colors"><X className="w-6 h-6" /></button>
+        <Dialog onClose={() => setIsPaymentModalOpen(false)} label="Record account entry" className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={() => setIsPaymentModalOpen(false)} />
+          <form onSubmit={handleRecordPayment} className="modal-panel relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-dialog z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-line flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-ink">Record Entry</h3>
+              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="text-subtle hover:text-ink transition-colors"><X className="w-6 h-6" /></button>
             </div>
             <div className="p-6 space-y-6">
-              <div className="flex gap-2 p-1 bg-base-900 rounded-2xl border border-base-800">
+              <div className="flex gap-2 p-1 bg-muted rounded-2xl border border-line">
                 {(['Receivable', 'Payable'] as const).map((type) => (
                   <button
                     key={type}
                     type="button"
                     onClick={() => setPayType(type)}
-                    className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all ${
-                      payType === type ? 'bg-white text-black shadow-sm' : 'text-neutral-500 hover:text-neutral-400'
+                    className={`flex-1 py-2 text-[11px] font-semibold uppercase tracking-wide rounded-xl transition-all ${
+                      payType === type ? 'bg-brand text-on-brand shadow-sm' : 'text-subtle hover:text-subtle'
                     }`}
                   >
                     {type}
@@ -514,55 +521,55 @@ export default function CustomersPage() {
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-[10px] font-bold text-neutral-500 mb-1 uppercase tracking-widest">Amount (PKR)</label>
-                  <input 
+                  <label className="block text-[11px] font-semibold text-subtle mb-1 uppercase tracking-wide">Amount (PKR)</label>
+                  <input aria-label="Amount (PKR)"
                     required
                     autoFocus
-                    type="number" 
-                    value={payAmount} 
+                    type="number"
+                    value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value.replace(/^0+(?=\d)/, ''))}
-                    className="w-full px-4 py-4 bg-base-900 border border-base-800 rounded-2xl text-2xl font-black text-white focus:outline-none focus:border-white/20 transition-all"
+                    className="w-full px-4 py-4 bg-muted border border-line rounded-2xl text-2xl font-semibold text-ink focus:outline-none focus:border-line transition-all"
                     placeholder="0.00"
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-neutral-500 mb-1 uppercase tracking-widest">Description / Reference</label>
-                  <textarea 
-                    value={payDesc} 
+                  <label className="block text-[11px] font-semibold text-subtle mb-1 uppercase tracking-wide">Description / Reference</label>
+                  <textarea aria-label="Description / Reference"
+                    value={payDesc}
                     onChange={(e) => setPayDesc(e.target.value)}
-                    className="w-full px-4 py-3 bg-base-900 border border-base-800 rounded-xl text-sm text-white focus:outline-none focus:border-white/20 transition-all h-24 resize-none"
+                    className="w-full px-4 py-3 bg-muted border border-line rounded-xl text-sm text-ink focus:outline-none focus:border-line transition-all h-24 resize-none"
                     placeholder="e.g. Partial payment for order #123"
                   />
                 </div>
               </div>
 
-              <div className="p-4 rounded-xl bg-black/40 border border-base-800 text-white space-y-2">
-                <div className="flex justify-between text-[10px] font-bold text-neutral-500 uppercase tracking-widest">
+              <div className="p-4 rounded-xl bg-black/40 border border-line text-ink space-y-2">
+                <div className="flex justify-between text-[11px] font-semibold text-subtle uppercase tracking-wide">
                   <span>Current Balance</span>
                   <span>Impact</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="font-bold">{formatCurrency(selectedCustomer.balance)}</span>
-                  <span className={`font-black ${
-                    payType === 'Receivable' ? 'text-green-400' : 'text-red-400'
+                  <span className="font-semibold">{formatCurrency(selectedCustomer.balance)}</span>
+                  <span className={`font-semibold ${
+                    payType === 'Receivable' ? 'text-success' : 'text-danger'
                   }`}>
                     {payType === 'Receivable' ? '+' : '-'}{formatCurrency(Number(payAmount) || 0)}
                   </span>
                 </div>
               </div>
             </div>
-            <div className="p-6 bg-base-900/50 flex gap-3">
-              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="flex-1 px-4 py-3 border border-base-800 rounded-xl font-bold text-sm text-neutral-400 hover:bg-base-800 transition-all">Cancel</button>
-              <button 
-                type="submit" 
+            <div className="p-6 bg-muted/50 flex gap-3">
+              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="flex-1 px-4 py-3 border border-line rounded-xl font-semibold text-sm text-subtle hover:bg-emphasis transition-all">Cancel</button>
+              <button
+                type="submit"
                 disabled={isSubmitting || !payAmount}
-                className="flex-1 px-4 py-3 bg-white text-black rounded-xl font-bold text-sm hover:bg-neutral-200 transition-all flex items-center justify-center gap-2 disabled:opacity-40"
+                className="flex-1 px-4 py-3 bg-brand text-on-brand rounded-xl font-semibold text-sm hover:bg-brand-hover transition-all flex items-center justify-center gap-2 disabled:opacity-40"
               >
                 {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Entry'}
               </button>
             </div>
           </form>
-        </div>
+        </Dialog>
       )}
     </div>
   );
@@ -578,41 +585,41 @@ function LedgerList({ customerUuid, formatCurrency }: { customerUuid: string, fo
 
   if (isLoading) return (
     <div className="p-20 flex justify-center">
-      <Loader2 className="w-10 h-10 animate-spin text-black opacity-20" />
+      <Loader2 className="w-8 h-8 animate-spin text-subtle" />
     </div>
   );
 
   if (ledger.length === 0) return (
-    <div className="p-20 text-center text-neutral-400">
+    <div className="p-20 text-center text-subtle">
       <Clock className="w-12 h-12 mx-auto mb-4 opacity-10" />
       <p className="text-sm">No ledger entries yet.</p>
     </div>
   );
 
   return (
-    <div className="divide-y divide-base-800">
+    <div className="divide-y divide-line">
       {ledger.map((entry) => (
-        <div key={entry.id} className="p-6 hover:bg-base-900/50 transition-colors flex items-center justify-between gap-4">
+        <div key={entry.id} className="p-6 hover:bg-muted/50 transition-colors flex items-center justify-between gap-4">
           <div className="flex items-start gap-4">
             <div className={`mt-1 p-2 rounded-lg ${
-              entry.type === 'Receivable' ? 'bg-blue-950/30 text-blue-400' :
-              'bg-red-950/30 text-red-400'
+              entry.type === 'Receivable' ? 'bg-info-soft text-info' :
+              'bg-danger-soft text-danger'
             }`}>
               {entry.type === 'Receivable' ? <TrendingUp className="w-4 h-4" /> :
                <TrendingDown className="w-4 h-4" />}
             </div>
             <div>
-              <p className="font-bold text-white">{entry.description || entry.type}</p>
-              <p className="text-[10px] text-neutral-500 font-mono mt-0.5 tracking-tighter">{new Date(entry.date).toLocaleString()}</p>
+              <p className="font-semibold text-ink">{entry.description || entry.type}</p>
+              <p className="text-[11px] text-subtle font-mono mt-0.5 tracking-tighter">{new Date(entry.date).toLocaleString()}</p>
             </div>
           </div>
           <div className="text-right">
-            <p className={`font-black tabular-nums ${
-              entry.type === 'Receivable' ? 'text-green-400' : 'text-red-400'
+            <p className={`font-semibold tabular-nums ${
+              entry.type === 'Receivable' ? 'text-success' : 'text-danger'
             }`}>
               {entry.type === 'Receivable' ? '+' : '-'}{formatCurrency(entry.amount)}
             </p>
-            <p className="text-[10px] text-neutral-500 uppercase tracking-widest font-bold mt-0.5">
+            <p className="text-[11px] text-subtle uppercase tracking-wide font-semibold mt-0.5">
               Bal: {formatCurrency(entry.balanceSnapshot)}
             </p>
           </div>

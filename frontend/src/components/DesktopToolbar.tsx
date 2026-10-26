@@ -1,4 +1,5 @@
 'use client';
+import Dialog from '@/components/Dialog';
 
 import { useEffect, useState } from 'react';
 import { Download, Loader2, Monitor, WifiOff, X } from 'lucide-react';
@@ -42,26 +43,26 @@ export default function DesktopToolbar() {
   }
 
   return <>
-    <div className="h-9 px-4 border-b border-neutral-800 bg-neutral-950 flex items-center justify-between text-xs text-neutral-400">
-      <span className="flex items-center gap-2"><Monitor size={14} /> Global Auto Parts Desktop <span className="text-neutral-600">v{process.env.NEXT_PUBLIC_DESKTOP_VERSION}</span></span>
+    <div className="h-9 px-4 border-b border-line bg-surface flex items-center justify-between text-xs text-subtle">
+      <span className="flex items-center gap-2"><Monitor size={14} /> Global Auto Parts Desktop <span className="text-subtle">v{process.env.NEXT_PUBLIC_DESKTOP_VERSION}</span></span>
       <div className="flex items-center gap-4">
-        {offline && <span className="text-amber-400 flex items-center gap-1"><WifiOff size={13} /> Offline — reconnect to use your business data</span>}
-        <button onClick={check} className="hover:text-white flex items-center gap-1"><Download size={13} /> Check for updates</button>
+        {offline && <span className="text-warning flex items-center gap-1"><WifiOff size={13} /> Offline — reconnect to use your business data</span>}
+        <button onClick={check} className="hover:text-ink flex items-center gap-1"><Download size={13} /> Check for updates</button>
       </div>
     </div>
-    {open && <div className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-5">
-      <div role="dialog" aria-modal="true" aria-labelledby="desktop-update-title" className="bg-neutral-950 border border-neutral-700 rounded-2xl max-w-md w-full p-6 space-y-4">
-        <div className="flex justify-between items-center"><h2 id="desktop-update-title" className="font-bold text-white">Desktop updates</h2><button aria-label="Close updates" disabled={busy} onClick={() => setOpen(false)}><X size={18} /></button></div>
-        {busy && <p className="flex gap-2 text-neutral-400"><Loader2 className="animate-spin" size={16} /> {message || 'Checking for updates…'}</p>}
-        {!busy && message && <p className="text-amber-300 text-sm">{message}</p>}
-        {!busy && update?.status === 'current' && <p className="text-neutral-300 text-sm">You have the latest published version.</p>}
-        {!busy && update?.status === 'unpublished' && <p className="text-neutral-300 text-sm">No desktop update has been published yet. You can continue using this version.</p>}
+    {open && <Dialog onClose={() => setOpen(false)} label="Desktop updates" busy={busy} className="fixed inset-0 z-[200] bg-black/80 flex items-center justify-center p-5">
+      <div className="modal-panel bg-surface border border-line rounded-2xl max-w-md w-full p-6 space-y-4">
+        <div className="flex justify-between items-center"><h2 id="desktop-update-title" className="font-semibold text-ink">Desktop updates</h2><button aria-label="Close updates" disabled={busy} onClick={() => setOpen(false)}><X size={18} /></button></div>
+        {busy && <p className="flex gap-2 text-subtle"><Loader2 className="animate-spin" size={16} /> {message || 'Checking for updates…'}</p>}
+        {!busy && message && <p className="text-warning text-sm">{message}</p>}
+        {!busy && update?.status === 'current' && <p className="text-body text-sm">You have the latest published version.</p>}
+        {!busy && update?.status === 'unpublished' && <p className="text-body text-sm">No desktop update has been published yet. You can continue using this version.</p>}
         {!busy && update?.status === 'available' && <>
-          <p className="text-neutral-300 text-sm">Version {update.version} is available. Save your work before updating.</p>
-          {update.notes && <p className="text-sm text-neutral-400 whitespace-pre-wrap max-h-48 overflow-auto">{update.notes}</p>}
-          <button onClick={install} className="bg-white text-black rounded-lg py-2 px-4 font-bold">Install verified update</button>
+          <p className="text-body text-sm">Version {update.version} is available. Save your work before updating.</p>
+          {update.notes && <p className="text-sm text-subtle whitespace-pre-wrap max-h-48 overflow-auto">{update.notes}</p>}
+          <button onClick={install} className="bg-brand text-on-brand rounded-lg py-2 px-4 font-semibold">Install verified update</button>
         </>}
       </div>
-    </div>}
+    </Dialog>}
   </>;
 }

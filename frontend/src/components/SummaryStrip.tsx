@@ -1,0 +1,3 @@
+export default function SummaryStrip({ items }: { items: { label: string; value: string | number; note?: string }[] }) {
+  return <div className="grid grid-cols-1 sm:grid-cols-3 border border-line bg-surface rounded-xl overflow-hidden shadow-panel divide-y sm:divide-y-0 sm:divide-x divide-line stagger">{items.map(item => <div className="px-5 py-4 flex items-center justify-between gap-4 sm:block" key={item.label}><p className="text-xs text-subtle">{item.label}</p><p className="text-xl font-semibold tracking-tight tabular-nums sm:mt-2">{item.value}</p>{item.note && <p className="text-[11px] text-subtle mt-1">{item.note}</p>}</div>)}</div>;
+}

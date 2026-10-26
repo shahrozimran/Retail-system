@@ -1,3 +1,4 @@
+import Dialog from '@/components/Dialog';
 import { errorMessage } from '@/lib/errors';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
 import React, { useState, useMemo } from 'react';
@@ -50,8 +51,8 @@ type Transaction = {
   batchId: string;
 };
 
-const selectClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white appearance-none';
-const inputClass = 'w-full bg-base-900 border border-base-800 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-white focus:ring-1 focus:ring-white placeholder-neutral-600';
+const selectClass = 'w-full bg-muted border border-line rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-line focus:ring-1 focus:ring-brand appearance-none';
+const inputClass = 'w-full bg-muted border border-line rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-line focus:ring-1 focus:ring-brand placeholder-subtle';
 
 /** Removes leading zeros so "01" becomes "1", but keeps "0.5" intact. */
 const sanitizeNum = (val: string) => val.replace(/^0+(?=\d)/, '');
@@ -74,12 +75,12 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
     isOpen && API_URL ? `${PROXY}?action=customers` : null,
     fetcher
   );
-  
-  const products: Product[] = useMemo(() => 
+
+  const products: Product[] = useMemo(() =>
     Array.isArray(dashboardRes?.data?.products) ? dashboardRes.data.products : []
   , [dashboardRes]);
 
-  const customers: Customer[] = useMemo(() => 
+  const customers: Customer[] = useMemo(() =>
     Array.isArray(customersRes?.data) ? customersRes.data : []
   , [customersRes]);
 
@@ -122,7 +123,7 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
             updated.unitPrice = updated.type === 'Out' ? String(p.salePrice) : String(p.buyPrice);
           }
         }
-        
+
         return updated;
       })
     );
@@ -252,20 +253,20 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-3xl bg-base-950 border border-base-800 rounded-2xl shadow-2xl z-10 mx-4 max-h-[92vh] flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-base-800 bg-base-900/50 rounded-t-2xl shrink-0">
+    <Dialog onClose={onClose} label="Record transaction" className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={onClose} />
+      <div className="modal-panel relative w-full max-w-3xl bg-surface border border-line rounded-2xl shadow-dialog z-10 mx-4 max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between p-5 border-b border-line bg-muted/50 rounded-t-2xl shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center">
-              <ArrowLeftRight className="w-6 h-6 text-black" />
+            <div className="w-10 h-10 bg-brand rounded-xl flex items-center justify-center">
+              <ArrowLeftRight className="w-6 h-6 text-on-brand" />
             </div>
             <div>
-              <h3 className="text-lg font-bold text-white leading-tight">Record Transaction</h3>
-              <p className="text-xs text-neutral-500">Add multiple items to a single batch order</p>
+              <h3 className="text-lg font-semibold text-ink leading-tight">Record Transaction</h3>
+              <p className="text-xs text-subtle">Add multiple items to a single batch order</p>
             </div>
           </div>
-          <button onClick={onClose} className="text-neutral-400 hover:text-white transition-colors p-1">
+          <button onClick={onClose} className="text-subtle hover:text-ink transition-colors p-1">
             <X className="w-6 h-6" />
           </button>
         </div>
@@ -273,32 +274,36 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
           <div className="overflow-y-auto flex-1 p-6 space-y-6">
             {error && (
-              <div className="p-4 bg-red-950/40 border border-red-900/50 text-red-400 text-sm rounded-xl font-bold flex items-center gap-3">
+              <div className="p-4 bg-danger-soft border border-danger/20 text-danger text-sm rounded-xl font-semibold flex items-center gap-3">
                 <XCircle className="w-5 h-5 shrink-0" />
                 {error}
               </div>
             )}
 
             <div className="space-y-4">
-              <div className="grid grid-cols-[1fr_90px_80px_110px_100px_32px] gap-3 px-1">
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Search Product</span>
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Type</span>
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest text-center">Qty</span>
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest">Price</span>
-                <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest text-right">Subtotal</span>
+              <div className="hidden md:grid grid-cols-[1fr_90px_80px_110px_100px_32px] gap-3 px-1">
+                <span className="text-[11px] font-semibold text-subtle uppercase tracking-wide">Search Product</span>
+                <span className="text-[11px] font-semibold text-subtle uppercase tracking-wide">Type</span>
+                <span className="text-[11px] font-semibold text-subtle uppercase tracking-wide text-center">Qty</span>
+                <span className="text-[11px] font-semibold text-subtle uppercase tracking-wide">Price</span>
+                <span className="text-[11px] font-semibold text-subtle uppercase tracking-wide text-right">Subtotal</span>
                 <span />
               </div>
 
-              {items.map((item) => {
+              {items.map((item, index) => {
                 const prod = getProduct(item.productUuid);
                 const subtotal = (Number(item.qtyChange) || 0) * (Number(item.unitPrice) || 0);
                 const stockWarning = prod && item.type === 'Out' && Number(item.qtyChange) > prod.quantity;
 
                 return (
-                  <div key={item.id} className="group/row">
-                    <div className="grid grid-cols-[1fr_90px_80px_110px_100px_32px] gap-3 items-center">
-                      <div className="relative">
+                  <div key={item.id} className="group/row rounded-xl border border-line p-3 md:p-0 md:border-0">
+                    <div className="grid grid-cols-2 md:grid-cols-[1fr_90px_80px_110px_100px_32px] gap-3 items-end md:items-center">
+                      <div className="relative col-span-2 md:col-span-1 min-w-0">
+                        <label className="md:hidden field-label" htmlFor={`transaction-product-${item.id}`}>Product</label>
+                        <div className="relative">
                         <input
+                          id={`transaction-product-${item.id}`}
+                          aria-label={`Product ${index + 1}`}
                           required
                           type="text"
                           autoComplete="off"
@@ -308,7 +313,8 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                           placeholder={dataLoading ? "Loading..." : "SKU or Name..."}
                           list={`products-list-${item.id}`}
                         />
-                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
+                        </div>
                         <datalist id={`products-list-${item.id}`}>
                           {products.map((p) => (
                             <option key={p.uuid} value={`[${p.sku}] ${p.name}`} />
@@ -316,27 +322,33 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                         </datalist>
                       </div>
 
-                      <select
+                      <div><label className="md:hidden field-label" htmlFor={`transaction-type-${item.id}`}>Type</label><select
+                        id={`transaction-type-${item.id}`}
+                        aria-label={`Transaction type ${index + 1}`}
                         value={item.type}
                         onChange={(e) => updateItem(item.id, { type: e.target.value as 'Out' | 'In' })}
                         className={selectClass}
                       >
                         <option value="Out">Sale</option>
                         <option value="In">Stock In</option>
-                      </select>
+                      </select></div>
 
-                      <input
+                      <div><label className="md:hidden field-label" htmlFor={`transaction-quantity-${item.id}`}>Quantity</label><input
+                        id={`transaction-quantity-${item.id}`}
+                        aria-label={`Quantity ${index + 1}`}
                         required
                         type="number"
                         min="1"
                         value={item.qtyChange}
                         onChange={(e) => updateItem(item.id, { qtyChange: sanitizeNum(e.target.value) })}
                         className={`${inputClass} text-center`}
-                      />
+                      /></div>
 
-                      <div className="relative">
-                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs">PKR</span>
+                      <div><label className="md:hidden field-label" htmlFor={`transaction-price-${item.id}`}>Unit price</label><div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-subtle text-xs">PKR</span>
                         <input
+                          id={`transaction-price-${item.id}`}
+                          aria-label={`Unit price ${index + 1}`}
                           required
                           type="number"
                           step="0.01"
@@ -346,17 +358,19 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                           onChange={(e) => updateItem(item.id, { unitPrice: sanitizeNum(e.target.value) })}
                           className={`${inputClass} !pl-10`}
                         />
-                      </div>
+                      </div></div>
 
-                      <div className="text-right text-sm font-bold text-white tabular-nums">
+                      <div className="text-right text-sm font-semibold text-ink tabular-nums">
+                        <span className="md:hidden text-xs text-subtle block mb-2 font-normal">Subtotal</span>
                         {formatCurrency(subtotal)}
                       </div>
 
                       <button
                         type="button"
+                        aria-label={`Remove product ${index + 1}`}
                         onClick={() => removeItem(item.id)}
                         disabled={items.length === 1}
-                        className="p-1.5 text-neutral-600 hover:text-red-400 disabled:opacity-0 transition-all"
+                        className="p-1.5 text-subtle hover:text-danger disabled:opacity-30 transition-all justify-self-end col-start-2 md:col-start-auto"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -365,14 +379,14 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                     <div className="flex justify-between items-center px-1 mt-1">
                       <div>
                         {stockWarning && (
-                          <p className="text-[10px] text-yellow-400 font-bold flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" /> Warning: Insufficient stock ({prod.quantity} in stock)
+                          <p className="text-[11px] text-warning font-semibold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-warning-soft" /> Warning: Insufficient stock ({prod.quantity} in stock)
                           </p>
                         )}
                         {prod && (
                           <div className="flex items-center gap-3 mt-0.5">
-                            <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-tight">Stock: <span className="text-neutral-300 font-mono">{prod.quantity}</span></p>
-                            <p className="text-[10px] text-neutral-500 uppercase font-bold tracking-tight">Potential: <span className="text-green-500/70 font-mono">{prod.potentialQuantity || 0}</span></p>
+                            <p className="text-[11px] text-subtle uppercase font-semibold tracking-tight">Stock: <span className="text-body font-mono">{prod.quantity}</span></p>
+                            <p className="text-[11px] text-subtle uppercase font-semibold tracking-tight">Potential: <span className="text-success font-mono">{prod.potentialQuantity || 0}</span></p>
                           </div>
                         )}
                       </div>
@@ -385,18 +399,18 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
             <button
               type="button"
               onClick={addItem}
-              className="flex items-center gap-2 text-sm font-bold text-neutral-400 hover:text-white border border-dashed border-base-700 hover:border-white/20 rounded-xl px-4 py-3 transition-all w-full justify-center bg-base-900/20"
+              className="flex items-center gap-2 text-sm font-semibold text-subtle hover:text-ink border border-dashed border-line hover:border-line rounded-xl px-4 py-3 transition-all w-full justify-center bg-muted/20"
             >
               <Plus className="w-4 h-4" /> Add Another Product
             </button>
 
-            <div className="border-t border-base-800 pt-6 grid grid-cols-2 gap-6">
+            <div className="border-t border-line pt-6 grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div>
-                <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">
+                <label className="block text-xs font-semibold text-subtle uppercase tracking-wide mb-2">
                   Customer / Buyer Name
                 </label>
                 <div className="relative">
-                  <input
+                  <input aria-label="Customer / Buyer Name"
                     type="text"
                     value={customerSearch}
                     onChange={(e) => setCustomerSearch(e.target.value)}
@@ -404,7 +418,7 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                     placeholder="Search existing or type new..."
                     list="customers-datalist"
                   />
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 pointer-events-none" />
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
                   <datalist id="customers-datalist">
                     {customers.map(c => (
                       <option key={c.uuid} value={`[${c.phone || 'No Phone'}] ${c.name}`} />
@@ -413,10 +427,10 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-bold text-neutral-500 uppercase tracking-widest mb-2">
-                  Reference / Note <span className="text-neutral-600 font-normal italic">(optional)</span>
+                <label className="block text-xs font-semibold text-subtle uppercase tracking-wide mb-2">
+                  Reference / Note <span className="text-subtle font-normal italic">(optional)</span>
                 </label>
-                <input
+                <input aria-label="Reference / Note"
                   type="text"
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
@@ -427,21 +441,21 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
             </div>
           </div>
 
-          <div className="p-6 border-t border-base-800 bg-base-900/50 rounded-b-2xl shrink-0">
+          <div className="p-6 border-t border-line bg-muted/50 rounded-b-2xl shrink-0">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Items Count</p>
-                <p className="text-lg font-bold text-white">{items.length} Product{items.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-subtle font-semibold uppercase tracking-wide">Items Count</p>
+                <p className="text-lg font-semibold text-ink">{items.length} Product{items.length !== 1 ? 's' : ''}</p>
               </div>
               <div className="text-right">
                 <div className="flex flex-col items-end gap-1">
-                  <div className="flex items-center gap-4 text-xs text-neutral-500 font-bold uppercase tracking-widest">
+                  <div className="flex items-center gap-4 text-xs text-subtle font-semibold uppercase tracking-wide">
                     <span>Subtotal:</span>
-                    <span className="text-white tabular-nums">{formatCurrency(grandTotal)}</span>
+                    <span className="text-ink tabular-nums">{formatCurrency(grandTotal)}</span>
                   </div>
-                  <div className="h-px w-32 bg-base-800 my-1" />
-                  <p className="text-xs text-neutral-500 font-bold uppercase tracking-widest">Grand Total</p>
-                  <p className="text-3xl font-black text-white tabular-nums leading-none mt-1">
+                  <div className="h-px w-32 bg-emphasis my-1" />
+                  <p className="text-xs text-subtle font-semibold uppercase tracking-wide">Grand Total</p>
+                  <p className="text-3xl font-semibold text-ink tabular-nums leading-none mt-1">
                     {formatCurrency(grandTotal)}
                   </p>
                 </div>
@@ -451,14 +465,14 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 bg-base-900 hover:bg-base-800 text-white py-3 rounded-xl font-bold transition-all border border-base-800"
+                className="flex-1 bg-muted hover:bg-emphasis text-ink py-3 rounded-xl font-semibold transition-all border border-line"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 bg-white hover:bg-neutral-200 disabled:opacity-70 text-black py-3 rounded-xl font-bold transition-all shadow-xl flex items-center justify-center gap-2"
+                className="flex-1 bg-brand hover:bg-brand-hover disabled:opacity-70 text-on-brand py-3 rounded-xl font-semibold transition-all shadow-panel flex items-center justify-center gap-2"
               >
                 {loading ? (
                   <>
@@ -472,7 +486,7 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </Dialog>
   );
 }
 
