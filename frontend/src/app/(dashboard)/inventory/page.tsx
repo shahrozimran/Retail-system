@@ -558,7 +558,7 @@ export default function Inventory() {
                                 setPRawMaterials(current => current.map((material, index) => index === idx ? { ...material, requiredPerProduct: value } : material));
                               }}
                               className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
-                              placeholder="0" 
+                              placeholder="0"
                             />
                           </div>
                         </div>
