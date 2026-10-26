@@ -57,7 +57,8 @@ export async function login(email: string, password: string) {
 }
 
 export async function hasSession() {
-  if (native && !bearer && !nativeRefresh) return false;
+  // Desktop credentials live in the Rust process and survive WebView navigation.
+  if (native && !DESKTOP && !bearer && !nativeRefresh) return false;
   const response = await apiFetch(AUTH);
   const data = await response.json();
   if (response.status === 401) return false;

@@ -28,11 +28,14 @@ if (!dev) {
   fs.mkdirSync(artifacts, { recursive: true });
   const config = JSON.parse(fs.readFileSync(path.join(root, 'src-tauri/tauri.conf.json'), 'utf8'));
   const version = config.version;
-  const installer = `${config.productName}_${version}_x64-setup.exe`;
-  for (const filename of [installer, installer + '.sig']) fs.copyFileSync(path.join(bundle, filename), path.join(artifacts, filename));
+  const sourceInstaller = `${config.productName}_${version}_x64-setup.exe`;
+  // GitHub replaces spaces in uploaded asset names with dots. Publish the same
+  // safe filename that the manifest references, so the updater URL stays valid.
+  const installer = `${config.productName.replace(/ /g, '.')}_${version}_x64-setup.exe`;
+  for (const suffix of ['', '.sig']) fs.copyFileSync(path.join(bundle, sourceInstaller + suffix), path.join(artifacts, installer + suffix));
   const manifest = {
     version, notes: 'Global Auto Parts desktop release.', pub_date: new Date().toISOString(),
-    platforms: { 'windows-x86_64': { signature: fs.readFileSync(path.join(bundle, installer + '.sig'), 'utf8').trim(), url: `https://github.com/shahrozimran/Retail-system/releases/download/desktop-v${version}/${encodeURIComponent(installer)}` } },
+    platforms: { 'windows-x86_64': { signature: fs.readFileSync(path.join(artifacts, installer + '.sig'), 'utf8').trim(), url: `https://github.com/shahrozimran/Retail-system/releases/download/desktop-v${version}/${encodeURIComponent(installer)}` } },
   };
   fs.writeFileSync(path.join(artifacts, 'latest.json'), JSON.stringify(manifest, null, 2) + '\n');
   const checksums = [installer, installer + '.sig', 'latest.json'].map(name => createHash('sha256').update(fs.readFileSync(path.join(artifacts, name))).digest('hex') + '  ' + name).join('\n');

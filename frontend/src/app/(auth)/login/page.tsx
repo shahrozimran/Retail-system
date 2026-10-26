@@ -24,7 +24,7 @@ export default function LoginPage() {
       await login(email, password);
       setPassword('');
       router.replace('/');
-      router.refresh();
+      if (!DESKTOP) router.refresh();
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Sign in failed.');
     } finally {

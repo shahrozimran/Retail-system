@@ -1,6 +1,6 @@
 [package]
 name = "global-auto-parts"
-version = "1.0.0"
+version = "1.0.1"
 description = "Global Auto Parts retail desktop application"
 authors = ["Global Auto Parts"]
 edition = "2021"

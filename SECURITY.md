@@ -26,7 +26,7 @@ PostgreSQL stores submitted names/descriptions as text; there is no spreadsheet 
 
 ## Browser and platform protections
 
-The Windows Tauri application bundles local assets and exposes a bounded Rust API bridge, PDF save/preview commands and signature-verified updates to the main local window only. It shares the existing bearer-only native authentication contract and keeps tokens in memory. External window navigation and arbitrary filesystem, shell and network calls are denied to the frontend. See `desktop/README.md` for installer signing and update-key handling.
+The Windows Tauri application bundles local assets and exposes a bounded Rust API bridge, PDF save/preview commands and signature-verified updates to the main local window only. It shares the existing bearer-only native authentication contract and keeps tokens in Rust process memory across document navigations, without exposing them to frontend JavaScript. Logout clears this native state. CSP permits local routing assets and IPC. External window navigation and arbitrary filesystem, shell and network calls are denied to the frontend. See `desktop/README.md` for installer signing and update-key handling.
 
 Mutation requests require the application marker header and an exact configured browser origin. The native transport has a separate allowed origin list but still requires valid user credentials/tokens. There is no cross-origin browser CORS grant. Responses carrying sessions or business data are private/no-store.
 

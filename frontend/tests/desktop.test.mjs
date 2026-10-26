@@ -9,12 +9,16 @@ const previousFetch = globalThis.fetch;
 globalThis.window = { crypto: globalThis.crypto, location: { origin: 'http://tauri.localhost', replace() {} } };
 const calls = [];
 let fail = false;
+let nativeSession = false;
 mockIPC((command, args) => {
   calls.push({ command, args });
   if (command !== 'retail_request') return true;
   if (fail) { fail = false; throw new Error('Network response lost'); }
   const login = args.request.body && JSON.parse(args.request.body).action === 'login';
-  return { status: 200, body: JSON.stringify({ success: true }), headers: login ? { 'x-retail-access-token': 'test.jwt.signature', 'x-retail-refresh-token': 'test-refresh-token' } : {} };
+  const logout = args.request.body && JSON.parse(args.request.body).action === 'logout';
+  if (login) nativeSession = true;
+  if (logout) nativeSession = false;
+  return { status: nativeSession || logout ? 200 : 401, body: JSON.stringify({ success: nativeSession || logout }), headers: {} };
 });
 globalThis.fetch = async () => { throw new Error('WebView fetch must not carry desktop API requests.'); };
 const { apiFetch, login, logout, PROXY } = await import('../src/lib/api.ts');
@@ -26,19 +30,22 @@ test('desktop login and requests use the bounded Rust bridge and in-memory token
   assert.equal(calls[0].command, 'retail_request');
   assert.equal(calls[0].args.request.url, 'https://retail-system-chi.vercel.app/api/auth/');
   await apiFetch(PROXY + '?action=products');
-  assert.equal(calls.at(-1).args.request.accessToken, 'test.jwt.signature');
-  assert.equal(calls.at(-1).args.request.refreshToken, 'test-refresh-token');
+  assert.equal(calls.at(-1).args.request.accessToken, undefined, 'Rust owns desktop tokens.');
+  assert.equal(calls.at(-1).args.request.refreshToken, undefined);
   const options = { method: 'POST', body: JSON.stringify({ action: 'add_customer', name: 'Test only' }) };
   fail = true;
   await assert.rejects(apiFetch(PROXY, options), /Network response lost/);
   const receipt = JSON.parse(calls.at(-1).args.request.body).requestId;
   await apiFetch(PROXY, options);
   assert.equal(JSON.parse(calls.at(-1).args.request.body).requestId, receipt);
+  const afterNavigation = await import('../src/lib/api.ts?new-dashboard-document');
+  assert.equal(await afterNavigation.hasSession(), true, 'The desktop session must survive a new page document.');
   await assert.rejects(apiFetch('https://evil.example/api/proxy/'), /Invalid API destination/);
   await logout();
+  assert.equal(await afterNavigation.hasSession(), false, 'Logout must clear the native session for every document.');
   await apiFetch(PROXY + '?action=products');
-  assert.equal(calls.at(-1).args.request.accessToken, null);
-  assert.equal(calls.at(-1).args.request.refreshToken, null);
+  assert.equal(calls.at(-1).args.request.accessToken, undefined);
+  assert.equal(calls.at(-1).args.request.refreshToken, undefined);
 });
 
 test('desktop invoices use native save/preview commands instead of browser downloads', async () => {

@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{collections::HashMap, fs, time::Duration};
+use std::{collections::HashMap, fs, sync::Mutex, time::Duration};
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
@@ -12,14 +12,41 @@ const UPDATE_ENDPOINT: &str = "https://github.com/shahrozimran/Retail-system/rel
 const MAX_PDF: usize = 16 * 1024 * 1024;
 struct HttpClient(reqwest::Client);
 
+#[derive(Clone, Default)]
+struct SessionSnapshot { generation: u64, access: Option<String>, refresh: Option<String> }
+
+#[derive(Default)]
+struct NativeSession(Mutex<SessionSnapshot>);
+
+impl NativeSession {
+    fn snapshot(&self) -> Result<SessionSnapshot, String> {
+        self.0.lock().map(|state| state.clone()).map_err(|_| "Session unavailable. Restart the application.".into())
+    }
+
+    fn receive(&self, generation: u64, status: u16, access: Option<String>, refresh: Option<String>, logout: bool) -> Result<(), String> {
+        let mut state = self.0.lock().map_err(|_| "Session unavailable. Restart the application.")?;
+        if logout && (200..300).contains(&status) {
+            *state = SessionSnapshot { generation: state.generation + 1, ..Default::default() };
+        } else if state.generation == generation {
+            if status == 401 || status == 403 {
+                *state = SessionSnapshot { generation: state.generation + 1, ..Default::default() };
+            } else if let (Some(access), Some(refresh)) = (access, refresh) {
+                if (200..300).contains(&status) {
+                    token(&access, 8192)?; token(&refresh, 1024)?;
+                    *state = SessionSnapshot { generation: state.generation + 1, access: Some(access), refresh: Some(refresh) };
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct RetailRequest {
     url: String,
     method: String,
     body: Option<String>,
-    access_token: Option<String>,
-    refresh_token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -75,32 +102,44 @@ fn token(value: &str, max: usize) -> Result<reqwest::header::HeaderValue, String
 }
 
 #[tauri::command]
-async fn retail_request(window: WebviewWindow, client: tauri::State<'_, HttpClient>, request: RetailRequest) -> Result<RetailResponse, String> {
+async fn retail_request(window: WebviewWindow, client: tauri::State<'_, HttpClient>, session: tauri::State<'_, NativeSession>, request: RetailRequest) -> Result<RetailResponse, String> {
     main_window(&window)?;
+    send_request(&client.0, &session, request).await
+}
+
+async fn send_request(client: &reqwest::Client, session: &NativeSession, request: RetailRequest) -> Result<RetailResponse, String> {
     let url = request_url(&request.url, &request.method)?;
-    let mut builder = client.0.request(if request.method == "POST" { reqwest::Method::POST } else { reqwest::Method::GET }, url.clone())
+    let snapshot = session.snapshot()?;
+    let mut logout = false;
+    let mut builder = client.request(if request.method == "POST" { reqwest::Method::POST } else { reqwest::Method::GET }, url.clone())
         .header("X-Retail-Client", "native").header("X-Retail-Request", "1")
         // Use the existing native origin and bearer-only server policy.
         .header("Origin", "https://localhost").header("Accept", "application/json");
-    if let Some(access) = request.access_token {
+    if let Some(access) = snapshot.access {
         token(&access, 8192)?;
         builder = builder.header("Authorization", format!("Bearer {access}"));
     }
-    if let Some(refresh) = request.refresh_token { builder = builder.header("X-Retail-Refresh-Token", token(&refresh, 1024)?); }
+    if let Some(refresh) = snapshot.refresh { builder = builder.header("X-Retail-Refresh-Token", token(&refresh, 1024)?); }
     if request.method == "POST" {
         let body = request.body.ok_or("A request body is required.")?;
         let limit = if url.path() == "/api/auth/" { 4096 } else { 65536 };
         if body.len() > limit { return Err("Request is too large.".into()); }
         let value: serde_json::Value = serde_json::from_str(&body).map_err(|_| "Invalid JSON body.")?;
         if !value.is_object() { return Err("A JSON object is required.".into()); }
+        logout = url.path() == "/api/auth/" && value.get("action").and_then(|v| v.as_str()) == Some("logout");
         builder = builder.header("Content-Type", "application/json").body(body);
     } else if request.body.is_some() { return Err("Unexpected request body.".into()); }
 
     let mut response = builder.send().await.map_err(|_| "Could not reach the retail server. Check your internet connection and retry the same operation.")?;
     if response.status().is_redirection() { return Err("The server returned an unexpected redirect.".into()); }
     let status = response.status().as_u16();
+    // Keep credentials in the native process, not in a document-scoped JS module.
+    // Every new page can verify the same session without exposing tokens to JS.
+    let access = response.headers().get("x-retail-access-token").and_then(|v| v.to_str().ok()).map(String::from);
+    let refresh = response.headers().get("x-retail-refresh-token").and_then(|v| v.to_str().ok()).map(String::from);
+    session.receive(snapshot.generation, status, access, refresh, logout)?;
     let mut headers = HashMap::new();
-    for name in ["content-type", "x-retail-access-token", "x-retail-refresh-token"] {
+    for name in ["content-type"] {
         if let Some(value) = response.headers().get(name).and_then(|v| v.to_str().ok()) { headers.insert(name.to_string(), value.to_string()); }
     }
     let mut bytes = Vec::new();
@@ -185,6 +224,7 @@ fn main() {
         .build().expect("HTTP client initialization failed");
     tauri::Builder::default()
         .manage(HttpClient(client))
+        .manage(NativeSession::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![retail_request, save_invoice, print_invoice, check_updates, install_update])
@@ -225,6 +265,47 @@ mod tests {
         assert!(!invoice_filename("../../bad.exe.pdf").contains('/'));
         assert_eq!(invoice_filename("CON.pdf"), "Invoice.pdf");
         assert_eq!(invoice_filename("INV-001.pdf"), "INV-001.pdf");
+    }
+
+    #[test]
+    fn native_session_survives_documents_and_rejects_stale_responses() {
+        let session = NativeSession::default();
+        session.receive(0, 200, Some("test.jwt.signature".into()), Some("refresh-token".into()), false).unwrap();
+        let document = session.snapshot().unwrap();
+        assert_eq!(document.access.as_deref(), Some("test.jwt.signature"));
+        session.receive(0, 401, None, None, false).unwrap();
+        assert_eq!(session.snapshot().unwrap().access, document.access, "An older request cannot clear a newer login.");
+        session.receive(document.generation, 200, Some("refreshed.jwt.signature".into()), Some("new-refresh-token".into()), false).unwrap();
+        assert_eq!(session.snapshot().unwrap().refresh.as_deref(), Some("new-refresh-token"));
+        session.receive(0, 200, None, None, true).unwrap();
+        assert!(session.snapshot().unwrap().access.is_none(), "Logout also clears a concurrently refreshed session.");
+        assert!(NativeSession::default().snapshot().unwrap().refresh.is_none(), "Restarting the process requires sign-in.");
+    }
+
+    #[test]
+    #[ignore = "Requires RETAIL_SMOKE_EMAIL and RETAIL_SMOKE_PASSWORD; reads business data without writing records"]
+    fn hosted_admin_login_read_and_logout() {
+        let email = std::env::var("RETAIL_SMOKE_EMAIL").expect("Set the smoke-test account through the process environment.");
+        let password = std::env::var("RETAIL_SMOKE_PASSWORD").expect("Set the smoke-test password through the process environment.");
+        tauri::async_runtime::block_on(async {
+            let session = NativeSession::default();
+            let client = reqwest::Client::builder().timeout(Duration::from_secs(25)).redirect(reqwest::redirect::Policy::none()).build().unwrap();
+            let auth_url = format!("{}/api/auth/", API_ORIGIN.trim());
+            let login = send_request(&client, &session, RetailRequest { url: auth_url.clone(), method: "POST".into(), body: Some(serde_json::json!({"action":"login","email":email,"password":password}).to_string()) }).await.unwrap();
+            assert_eq!(login.status, 200, "Hosted sign-in did not succeed.");
+            assert!(session.snapshot().unwrap().access.is_some());
+            assert!(!login.headers.contains_key("x-retail-access-token"), "Credentials must not leave native memory.");
+            for action in ["dashboard", "products", "raw_materials", "customers", "transactions", "reports", "productions"] {
+                let result = send_request(&client, &session, RetailRequest { url: format!("{}/api/proxy/?action={action}", API_ORIGIN.trim()), method: "GET".into(), body: None }).await.unwrap();
+                assert_eq!(result.status, 200, "Hosted read failed: {action}");
+                assert_eq!(serde_json::from_str::<serde_json::Value>(&result.body).unwrap()["success"], true);
+            }
+            let logout = send_request(&client, &session, RetailRequest { url: auth_url.clone(), method: "POST".into(), body: Some("{\"action\":\"logout\"}".into()) }).await.unwrap();
+            assert_eq!(logout.status, 200);
+            assert!(session.snapshot().unwrap().refresh.is_none());
+            let after = send_request(&client, &session, RetailRequest { url: auth_url, method: "GET".into(), body: None }).await.unwrap();
+            assert_eq!(after.status, 401);
+        });
     }
 
     #[test]

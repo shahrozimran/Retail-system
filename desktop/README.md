@@ -4,9 +4,9 @@ This Tauri 2 application bundles the existing interface and connects to the same
 
 ## Install and use
 
-The release installer is copied to `artifacts/` by `npm run build:desktop`. Run the `Global Auto Parts_1.0.0_x64-setup.exe` installer. It installs for the current Windows user and provides a Start menu entry and desktop shortcut option. Windows 10/11 x64 with Microsoft Edge WebView2 is required; the installer can download WebView2 if it is missing.
+The release installer is copied to `artifacts/` by `npm run build:desktop`. Run the `Global.Auto.Parts_1.0.1_x64-setup.exe` installer. It installs for the current Windows user and provides a Start menu entry and desktop shortcut option. Windows 10/11 x64 with Microsoft Edge WebView2 is required; the installer can download WebView2 if it is missing.
 
-Sign in using the existing authorized account. Access and refresh tokens remain in memory and disappear when the app closes. The native request bridge uses the existing native/bearer-only API contract, so Vercel needs no new database secret or desktop-specific CORS grant.
+Sign in using the existing authorized account. Access and refresh tokens remain in the Rust process's memory, survive page navigation/reloads and disappear when the app closes. They are not returned to frontend JavaScript. The native request bridge uses the existing native/bearer-only API contract, so Vercel needs no new database secret or desktop-specific CORS grant. Local routing asset requests are permitted by CSP; external frontend network destinations remain restricted.
 
 In the invoice window, **Export PDF** opens a native Windows save dialog. **Print PDF** opens a generated copy in the default PDF reader for preview and printing. You choose the printer in that reader; opening the preview does not send a physical print job. Preview files are stored under this application's cache directory. Delete those generated previews when no longer needed.
 
@@ -31,6 +31,8 @@ Desktop API origin must match `src-tauri/api-origin.txt` and `NEXT_PUBLIC_API_OR
 ## Updates and release signing
 
 **Check for updates** reads the project's GitHub Releases `latest.json` endpoint. It handles an unpublished channel explicitly. Published updates are installed only after the user presses **Install verified update**, and Tauri verifies each installer with the embedded public signing key.
+
+The release endpoint must be accessible without GitHub sign-in. A private release repository returns 404 to the native updater, even when the owner can download files in a signed-in browser. In that case install the generated signed installer manually until a publicly reachable artifact channel is configured; keep the source repository private if desired. No GitHub access token is embedded in the application.
 
 For the next release, update both `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml` versions, build with the original private signing files, and publish the installer, its `.sig` and generated `artifacts/latest.json` in a GitHub Release tagged `desktop-vVERSION`. The manifest uses the new version and an entry under `platforms.windows-x86_64` with the installer HTTPS `url` and the contents of its `.sig` as `signature`. `SHA256SUMS.txt` records the exact generated artifacts. Publishing releases and setting up CI signing are separate from building a local installer. No release is published automatically.
 

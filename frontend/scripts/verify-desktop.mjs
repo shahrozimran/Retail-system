@@ -12,6 +12,7 @@ const capability = JSON.parse(fs.readFileSync(path.join(desktop, 'src-tauri/capa
 assert.deepEqual(capability.permissions, ['allow-retail-request', 'allow-save-invoice', 'allow-print-invoice', 'allow-check-updates', 'allow-install-update']);
 assert.deepEqual(capability.windows, ['main']);
 assert.ok(config.app.security.csp.includes("object-src 'none'"));
+assert.ok(config.app.security.csp.split(';').find(s => s.trim().startsWith('connect-src')).includes("'self'"), 'Static client routing requires local asset requests.');
 assert.ok(!config.app.security.csp.split(';').find(s => s.trim().startsWith('script-src')).includes('unsafe-inline'));
 assert.ok(!config.app.security.csp.includes('unsafe-eval'));
 const forbidden = [process.env.SUPABASE_URL, process.env.SUPABASE_PUBLISHABLE_KEY].filter(Boolean);
