@@ -1,0 +1,21 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { execFileSync } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(path.join(root, '../frontend/package.json'));
+const key = path.join(root, 'private/updater.key');
+if (fs.existsSync(key)) throw new Error('A signing key already exists. Keep it for future updates.');
+const configPath = path.join(root, 'src-tauri/tauri.conf.json');
+const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+if (config.plugins.updater.pubkey) throw new Error('An update verification key is already configured. Restore the matching private signing files instead of changing the key.');
+fs.mkdirSync(path.dirname(key), { recursive: true });
+const password = randomBytes(32).toString('base64url');
+execFileSync(process.execPath, [require.resolve('@tauri-apps/cli/tauri.js'), 'signer', 'generate', '-w', key, '-p', password], { cwd: root, stdio: 'pipe' });
+fs.writeFileSync(path.join(root, 'private/signing.json'), JSON.stringify({ password }), { mode: 0o600 });
+config.plugins.updater.pubkey = fs.readFileSync(key + '.pub', 'utf8').trim();
+fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + '\n');
+console.log('Updater signing key created privately. Public verification key configured.');

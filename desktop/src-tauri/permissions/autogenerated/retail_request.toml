@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-retail-request"
+description = "Enables the retail_request command without any pre-configured scope."
+commands.allow = ["retail_request"]
+
+[[permission]]
+identifier = "deny-retail-request"
+description = "Denies the retail_request command without any pre-configured scope."
+commands.deny = ["retail_request"]

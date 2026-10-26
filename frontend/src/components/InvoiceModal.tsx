@@ -1,8 +1,9 @@
 'use client';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { DESKTOP, saveDesktopInvoice } from '@/lib/desktop';
 
 import React, { useState } from 'react';
-import { X, FileText, Download, Loader2, Building2, User, Hash, CheckSquare, Square, Search, Eye, EyeOff } from 'lucide-react';
+import { X, FileText, Download, Printer, Loader2, Building2, User, Hash, CheckSquare, Square, Search, Eye, EyeOff } from 'lucide-react';
 import useSWR from 'swr';
 
 const fetcher = async (url: string) => {
@@ -121,7 +122,7 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
   const selectAll = () => setSelectedIds(new Set(filteredTx.map((t) => t.id)));
   const deselectAll = () => setSelectedIds(new Set());
 
-  const handleGenerate = async () => {
+  const handleGenerate = async (print = false) => {
     if (selectedTx.length === 0) return;
     setGenerating(true);
     try {
@@ -264,7 +265,8 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
       doc.text(companyName, margin, pageH - 5.5);
       doc.text(`Generated ${new Date().toLocaleString()}`, pageW - margin, pageH - 5.5, { align: 'right' });
 
-      doc.save(`${invoiceNo}.pdf`);
+      if (DESKTOP) await saveDesktopInvoice(doc.output('arraybuffer'), `${invoiceNo}.pdf`, print);
+      else doc.save(`${invoiceNo}.pdf`);
     } catch { alert('Failed to generate PDF.'); } finally { setGenerating(false); }
   };
 
@@ -479,13 +481,23 @@ function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
               <div className="flex gap-3">
                 <button onClick={onClose} className="flex-1 bg-zinc-900 hover:bg-zinc-800 text-white py-2.5 rounded-lg font-bold transition-colors border border-zinc-800 text-sm">Cancel</button>
                 <button 
-                  onClick={handleGenerate} 
+                  onClick={() => handleGenerate()}
                   disabled={generating || selectedTx.length === 0 || !clientName} 
                   className="flex-1 bg-white hover:bg-zinc-200 disabled:opacity-50 text-black py-2.5 rounded-lg font-bold transition-colors shadow-lg flex items-center justify-center gap-2 text-sm"
                 >
                   {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
                   Export PDF {selectedTx.length > 0 && `(${selectedTx.length})`}
                 </button>
+                {DESKTOP && (
+                  <button
+                    onClick={() => handleGenerate(true)}
+                    disabled={generating || selectedTx.length === 0 || !clientName}
+                    title="Open the invoice in your PDF reader to preview and print"
+                    className="bg-zinc-900 hover:bg-zinc-800 disabled:opacity-50 text-white px-4 rounded-lg border border-zinc-700 flex items-center gap-2 text-sm font-bold"
+                  >
+                    <Printer className="w-4 h-4" /> Print PDF
+                  </button>
+                )}
               </div>
             </div>
           </div>

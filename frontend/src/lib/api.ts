@@ -1,7 +1,8 @@
 import { Capacitor } from '@capacitor/core';
 import { prepareOperation, finishOperation } from './operations.ts';
+import { DESKTOP, desktopFetch } from './desktop.ts';
 
-const native = Capacitor.isNativePlatform();
+const native = DESKTOP || Capacitor.isNativePlatform();
 const configuredOrigin = process.env.NEXT_PUBLIC_API_ORIGIN || '';
 const origin = native && /^https:\/\/[^/?#]+$/.test(configuredOrigin) ? configuredOrigin : '';
 export const API_URL = native ? origin : '/api';
@@ -29,7 +30,8 @@ export async function apiFetch(url: string, options: RequestInit = {}) {
     operationKey = operation.key;
     options = { ...options, body: JSON.stringify(operation.payload) };
   }
-  const response = await globalThis.fetch(url, { ...options, headers, credentials: native ? 'omit' : 'same-origin', cache: 'no-store', signal: options.signal || AbortSignal.timeout(30000) });
+  const transport = DESKTOP ? desktopFetch : globalThis.fetch;
+  const response = await transport(url, { ...options, headers, credentials: native ? 'omit' : 'same-origin', cache: 'no-store', signal: options.signal || AbortSignal.timeout(30000) });
   if (native) {
     bearer = response.headers.get('x-retail-access-token') || bearer;
     nativeRefresh = response.headers.get('x-retail-refresh-token') || nativeRefresh;

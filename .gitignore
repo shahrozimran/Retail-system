@@ -23,6 +23,11 @@
 supabase/private/
 supabase/.temp/
 supabase/.branches/
+.codex-remote-attachments/
+desktop/private/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/artifacts/
 
 # Logs
 npm-debug.log*

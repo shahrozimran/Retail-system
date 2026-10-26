@@ -30,6 +30,10 @@ The local project needs the Supabase schema and private account setup to be appl
 
 The public Supabase key grants no business access without the allowed admin's active session. The service-role key and database password are not needed by the running application.
 
+## Windows desktop
+
+The Tauri desktop application uses the same interface, authorized account and hosted API. Run `npm run build:desktop` to create the Windows x64 installer and signed update artifacts under `desktop/artifacts/`. Initial signing setup is `npm run desktop:signing`; keep the generated ignored private files for subsequent releases. See [desktop/README.md](desktop/README.md) for installation, native PDF saving/printing, prerequisites and release publishing. Internet access is required for business data.
+
 ## Checks
 
 Run `npm test`, `npm run typecheck`, `npm run lint`, `npm audit --audit-level=low`, and both build commands. The suite runs migrations and business operations against an isolated PostgreSQL instance via PGlite, plus mocked Supabase Auth integration and client retry tests. Test records exist only in that isolated process and are not sent to the hosted project.

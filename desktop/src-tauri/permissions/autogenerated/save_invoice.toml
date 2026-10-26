@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-invoice"
+description = "Enables the save_invoice command without any pre-configured scope."
+commands.allow = ["save_invoice"]
+
+[[permission]]
+identifier = "deny-save-invoice"
+description = "Denies the save_invoice command without any pre-configured scope."
+commands.deny = ["save_invoice"]

@@ -11,6 +11,10 @@
     "start": "npm start --prefix frontend",
     "lint": "npm run lint --prefix frontend",
     "build:android": "npm run build:android --prefix frontend",
+    "build:desktop": "node desktop/scripts/build.mjs",
+    "desktop:signing": "node desktop/scripts/setup-signing.mjs",
+    "desktop:dev": "node desktop/scripts/build.mjs --dev",
+    "test:desktop": "node desktop/scripts/test.mjs",
     "test": "npm run test --prefix frontend",
     "typecheck": "npm run typecheck --prefix frontend",
     "check:supabase": "npm run check:supabase --prefix frontend"

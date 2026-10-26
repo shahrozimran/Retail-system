@@ -9,10 +9,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const nodeRequire = createRequire(import.meta.url);
 
 async function build() {
+  const desktop = process.argv.includes('--desktop');
   const { staticCsp } = await import('./security-headers.mjs');
   nextEnv.loadEnvConfig(__dirname);
   const origin = process.env.NEXT_PUBLIC_API_ORIGIN || '';
-  if (!origin || !/^https:\/\/[^/?#]+$/.test(origin)) throw new Error('Set NEXT_PUBLIC_API_ORIGIN to the hosted HTTPS Next server before an Android build.');
+  if (!origin || !/^https:\/\/[^/?#]+$/.test(origin)) throw new Error('Set NEXT_PUBLIC_API_ORIGIN to the hosted HTTPS Next server before a native build.');
   const moves = [['src/app/api', 'src/api-temp'], ['src/proxy.ts', 'src/proxy.disabled']];
   const moved = [];
   try {
@@ -22,7 +23,7 @@ async function build() {
       if (fs.existsSync(from)) { fs.renameSync(from, to); moved.push([from, to]); }
     }
     execFileSync(process.execPath, [nodeRequire.resolve('next/dist/bin/next'), 'build'], {
-      cwd: __dirname, stdio: 'inherit', env: { ...process.env, CAPACITOR_BUILD: '1' },
+      cwd: __dirname, stdio: 'inherit', env: { ...process.env, CAPACITOR_BUILD: '1', NEXT_PUBLIC_APP_PLATFORM: desktop ? 'desktop' : 'android', NEXT_PUBLIC_DESKTOP_VERSION: desktop ? JSON.parse(fs.readFileSync(path.resolve(__dirname, '../desktop/src-tauri/tauri.conf.json'), 'utf8')).version : '' },
     });
     function secure(directory) {
       for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -40,7 +41,16 @@ async function build() {
         }
       }
     }
-    secure(path.join(__dirname, 'out'));
+    if (desktop) {
+      // Tauri adds its own IPC policy and hashes the bundled hydration scripts.
+      // Android's separate meta policy would block Tauri's injected IPC bridge.
+      const output = path.resolve(__dirname, '../desktop/dist');
+      if (path.relative(path.resolve(__dirname, '..'), output) !== path.join('desktop', 'dist')) throw new Error('Invalid desktop output path.');
+      fs.rmSync(output, { recursive: true, force: true });
+      fs.mkdirSync(output, { recursive: true });
+      fs.cpSync(path.join(__dirname, 'out'), output, { recursive: true, force: true });
+      fs.writeFileSync(path.join(output, 'desktop-build.json'), JSON.stringify({ origin, platform: 'desktop' }));
+    } else secure(path.join(__dirname, 'out'));
   } finally {
     for (const [source, temporary] of moved.reverse()) fs.renameSync(temporary, source);
   }

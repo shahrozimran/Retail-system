@@ -17,6 +17,7 @@
     "@capacitor/cli": "8.4.3",
     "@capacitor/core": "8.5.3",
     "@supabase/supabase-js": "2.118.0",
+    "@tauri-apps/api": "2.12.4",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^1.14.0",
@@ -28,6 +29,7 @@
   "devDependencies": {
     "@electric-sql/pglite": "0.5.11",
     "@tailwindcss/postcss": "^4",
+    "@tauri-apps/cli": "2.12.4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
