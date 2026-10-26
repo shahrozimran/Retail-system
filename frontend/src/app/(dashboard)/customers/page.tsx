@@ -5,8 +5,10 @@ import DataNotice from '@/components/DataNotice';
 import { useMounted } from '@/hooks/useMounted';
 import { errorMessage } from '@/lib/errors';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { formatMoney } from '@/lib/money';
 
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import { clearPendingCustomerEntry, customerEntryError, prepareCustomerEntry, readPendingCustomerEntry } from '@/lib/customer-entry';
 import useSWR, { mutate } from 'swr';
 import {
   Users, UserPlus, Search, Loader2,
@@ -58,9 +60,14 @@ export default function CustomersPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isLedgerOpen, setIsLedgerOpen] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [pendingEntry, setPendingEntry] = useState(readPendingCustomerEntry);
+  const [isLedgerOpen, setIsLedgerOpen] = useState(() => Boolean(pendingEntry));
+  const [customerSnapshot, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(() => Boolean(pendingEntry));
+  const selectedCustomer = customers.find(c => c.uuid === customerSnapshot?.uuid) ?? customerSnapshot ?? (isPaymentModalOpen && pendingEntry ? customers.find(c => c.uuid === pendingEntry.customerUuid) ?? null : null);
+  const [paymentError, setPaymentError] = useState('');
+  const [saveNotice, setSaveNotice] = useState('');
+  const paymentInFlight = useRef(false);
 
   // Form states
   const [newName, setNewName] = useState('');
@@ -68,14 +75,13 @@ export default function CustomersPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Payment states
-  const [payAmount, setPayAmount] = useState('');
-  const [payType, setPayType] = useState<'Receivable' | 'Payable'>('Receivable');
-  const [payDesc, setPayDesc] = useState('');
+  const [payAmount, setPayAmount] = useState(() => pendingEntry ? String(pendingEntry.amount) : '');
+  const [payType, setPayType] = useState<'Receivable' | 'Payable'>(() => pendingEntry?.type ?? 'Receivable');
+  const [payDesc, setPayDesc] = useState(() => pendingEntry?.description ?? '');
 
   const mounted = useMounted();
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+  const formatCurrency = formatMoney;
 
   const filteredCustomers = customers.filter(c =>
     c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -131,93 +137,59 @@ export default function CustomersPage() {
     }
   };
 
-  const handleRecordPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedCustomer || !payAmount) return;
-    setIsSubmitting(true);
-
-    const amountNum = Number(payAmount);
-    const typeModifier = payType === 'Receivable' ? 1 : -1;
-    const balanceChange = amountNum * typeModifier;
-
-    const updatedCustomerOptimistic = {
-      ...selectedCustomer,
-      balance: selectedCustomer.balance + balanceChange
-    };
-
-    const updatePromise = postToAPI({
-      action: 'record_customer_payment',
-      customerUuid: selectedCustomer.uuid,
-      amount: amountNum,
-      type: payType,
-      description: payDesc
-    }).then(res => {
-      if (!res.success) throw new Error(res.message || 'Failed to record payment');
-      return res;
-    });
-
+  const handleRecordPayment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedCustomer || paymentInFlight.current) return;
+    const validation = customerEntryError(Number(payAmount), payDesc);
+    if (!pendingEntry && validation) { setPaymentError(validation); return; }
+    paymentInFlight.current = true;
+    setIsSubmitting(true); setPaymentError(''); setSaveNotice('');
+    let committed = false;
     try {
-      setIsPaymentModalOpen(false);
-      setPayAmount('');
-      setPayDesc('');
-
-      const updatedCustomersData = customers.map(c =>
-        c.uuid === selectedCustomer.uuid ? updatedCustomerOptimistic : c
-      );
-
-      setSelectedCustomer(updatedCustomerOptimistic);
-
-      const ledgerKey = `${PROXY}?action=customer_ledger&customerUuid=${selectedCustomer.uuid}`;
-      const newLedgerEntry: LedgerEntry = {
-        id: 'temp-' + crypto.randomUUID(),
-        date: new Date().toISOString(),
-        type: payType,
-        amount: amountNum,
-        description: payDesc || payType,
-        balanceSnapshot: selectedCustomer.balance + balanceChange
-      };
-
-      // Mutate ledger list cache optimistically
-      mutate(
-        ledgerKey,
-        updatePromise.then(() => undefined),
-        {
-          optimisticData: (currentRes: { data?: LedgerEntry[]; success?: boolean } | undefined) => {
-            const currentList = Array.isArray(currentRes?.data) ? currentRes.data : [];
-            return {
-              ...currentRes,
-              data: [newLedgerEntry, ...currentList]
-            };
-          },
-          rollbackOnError: true,
-          revalidate: true
+      const payload = pendingEntry ?? await prepareCustomerEntry(selectedCustomer.uuid, Number(payAmount), payType, payDesc);
+      setPendingEntry(payload);
+      const response = await fetch(PROXY, { method: 'POST', body: JSON.stringify(payload) });
+      const result = await response.json();
+      if (!response.ok || !result.success || !result.commitConfirmed || !result.customer || !Array.isArray(result.customers) || !Array.isArray(result.ledger)) {
+        if (result.operationState === 'rolled_back') { clearPendingCustomerEntry(payload.requestId); setPendingEntry(null); }
+        throw new Error(result.message || 'Save is not confirmed yet. Retry this same entry to check it safely.');
+      }
+      committed = true;
+      clearPendingCustomerEntry(payload.requestId); setPendingEntry(null);
+      // Display values read back from Supabase. Do not replace a confirmed
+      // ledger with undefined or calculate its balance from an old UI snapshot.
+      setSelectedCustomer(result.customer);
+      await Promise.all([
+        mutateCustomers({ success: true, data: result.customers }, { revalidate: false }),
+        mutate(PROXY + '?action=customer_ledger&customerUuid=' + result.customer.uuid, { success: true, data: result.ledger }, { revalidate: false }),
+      ]);
+      setPayAmount(''); setPayDesc(''); setIsPaymentModalOpen(false);
+      setSaveNotice('Entry saved to Supabase and verified. The balance and ledger are up to date.');
+    } catch (error) {
+      if (committed) {
+        setIsPaymentModalOpen(false);
+        setSaveNotice('The entry is saved to Supabase. Refresh the account to reload its latest display.');
+      } else {
+        const recovered = readPendingCustomerEntry();
+        if (recovered) {
+          setPendingEntry(recovered);
+          setPayAmount(String(recovered.amount)); setPayType(recovered.type); setPayDesc(recovered.description);
+          const customer = customers.find(c => c.uuid === recovered.customerUuid);
+          if (customer) setSelectedCustomer(customer);
         }
-      );
+        setPaymentError(errorMessage(error) + ' Your entry details are kept here until confirmation.');
+      }
+    } finally { paymentInFlight.current = false; setIsSubmitting(false); }
+  };
 
-      // Mutate customers list cache optimistically
-      await mutateCustomers(
-        updatePromise.then(() => {
-          return {
-            ...custResponse,
-            data: updatedCustomersData
-          };
-        }),
-        {
-          optimisticData: {
-            ...custResponse,
-            data: updatedCustomersData
-          },
-          rollbackOnError: true,
-          revalidate: true
-        }
-      );
-    } catch (err: unknown) {
-      console.error(err);
-      alert(errorMessage(err) || "Failed to connect to API.");
-      setSelectedCustomer(selectedCustomer);
-    } finally {
-      setIsSubmitting(false);
+  const openPayment = () => {
+    setPaymentError('');
+    if (pendingEntry) {
+      const customer = customers.find(c => c.uuid === pendingEntry.customerUuid);
+      if (customer) setSelectedCustomer(customer);
+      setPayAmount(String(pendingEntry.amount)); setPayType(pendingEntry.type); setPayDesc(pendingEntry.description);
     }
+    setIsPaymentModalOpen(true);
   };
 
   const handleDeleteCustomer = async (uuid: string) => {
@@ -260,6 +232,8 @@ export default function CustomersPage() {
   return (
     <div className="space-y-6 fade-in pb-12">
       <PageHeading title="Customers" description="Manage relationships, account balances and payment history." />
+      {saveNotice && !isLedgerOpen && <div role="status" className="p-4 bg-success-soft text-success border border-success/20 rounded-xl flex gap-3 items-center text-sm"><span>{saveNotice}</span><button onClick={() => setSaveNotice('')} className="ml-auto underline text-xs">Dismiss</button></div>}
+      {pendingEntry && (!isPaymentModalOpen || !selectedCustomer) && <div role="status" className="p-4 bg-warning-soft text-warning border border-warning/20 rounded-xl flex flex-wrap gap-3 items-center text-sm"><span>A customer entry still needs confirmation. Its recovery draft is kept on this device until confirmation.</span><button onClick={openPayment} className="ml-auto underline text-xs font-semibold">Verify saved entry</button></div>}
       {customersError && <DataNotice onRetry={() => mutateCustomers()} />}
       {/* Summary Header */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 stagger">
@@ -471,6 +445,8 @@ export default function CustomersPage() {
               </div>
             </div>
 
+            {saveNotice && <div role="status" className="mx-5 mt-4 p-3 rounded-lg bg-success-soft text-success text-xs border border-success/20 flex gap-3 items-center"><span>{saveNotice}</span><button className="underline ml-auto" onClick={() => setSaveNotice('')}>Dismiss</button></div>}
+
             {/* Actions Bar */}
             <div className="p-4 bg-muted/30 border-b border-line flex items-center justify-between px-6">
               <div className="flex items-center gap-2">
@@ -478,7 +454,7 @@ export default function CustomersPage() {
                 <span className="text-xs font-semibold text-subtle uppercase tracking-wide">Transaction History</span>
               </div>
               <button
-                onClick={() => setIsPaymentModalOpen(true)}
+                onClick={openPayment}
                 className="flex items-center gap-2 bg-brand text-on-brand px-4 py-2 rounded-xl text-xs font-semibold hover:bg-brand-hover transition-all shadow-sm"
               >
                 <Plus className="w-4 h-4" />
@@ -496,19 +472,23 @@ export default function CustomersPage() {
 
       {/* Record Entry Modal */}
       {isPaymentModalOpen && selectedCustomer && (
-        <Dialog onClose={() => setIsPaymentModalOpen(false)} label="Record account entry" className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={() => setIsPaymentModalOpen(false)} />
-          <form onSubmit={handleRecordPayment} className="modal-panel relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-dialog z-10 overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-line flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-ink">Record Entry</h3>
-              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="text-subtle hover:text-ink transition-colors"><X className="w-6 h-6" /></button>
+        <Dialog busy={isSubmitting} onClose={() => { if (!isSubmitting) setIsPaymentModalOpen(false); }} label="Record account entry" className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={() => { if (!isSubmitting) setIsPaymentModalOpen(false); }} />
+          <form onSubmit={handleRecordPayment} className="modal-panel relative w-full max-w-md bg-surface border border-line rounded-2xl shadow-dialog z-10 overflow-hidden max-h-[92dvh] flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-line flex items-center justify-between shrink-0">
+              <div><h3 className="text-lg font-semibold text-ink">Record Entry</h3><p className="text-xs text-subtle mt-1">{selectedCustomer.name}{pendingEntry ? ' · Verify pending entry' : ''}</p></div>
+              <button type="button" disabled={isSubmitting} aria-label="Close entry" onClick={() => setIsPaymentModalOpen(false)} className="text-subtle hover:text-ink transition-colors"><X className="w-6 h-6" /></button>
             </div>
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto min-h-0 flex-1">
+              {paymentError && <p role="alert" className="text-sm text-warning bg-warning-soft border border-warning/20 rounded-lg p-3">{paymentError}</p>}
+              {isSubmitting && <p role="status" className="text-xs text-brand-ink">Saving and verifying with Supabase. Please keep this window open.</p>}
+              {pendingEntry && !isSubmitting && <p className="text-xs text-subtle">This entry has a saved recovery reference. Retry confirmation checks the same entry and cannot add it twice.</p>}
               <div className="flex gap-2 p-1 bg-muted rounded-2xl border border-line">
                 {(['Receivable', 'Payable'] as const).map((type) => (
                   <button
                     key={type}
                     type="button"
+                    disabled={isSubmitting || Boolean(pendingEntry)}
                     onClick={() => setPayType(type)}
                     className={`flex-1 py-2 text-[11px] font-semibold uppercase tracking-wide rounded-xl transition-all ${
                       payType === type ? 'bg-brand text-on-brand shadow-sm' : 'text-subtle hover:text-subtle'
@@ -526,6 +506,8 @@ export default function CustomersPage() {
                     required
                     autoFocus
                     type="number"
+                    min="0.01" max="1000000000" step="0.01"
+                    readOnly={isSubmitting || Boolean(pendingEntry)}
                     value={payAmount}
                     onChange={(e) => setPayAmount(e.target.value.replace(/^0+(?=\d)/, ''))}
                     className="w-full px-4 py-4 bg-muted border border-line rounded-2xl text-2xl font-semibold text-ink focus:outline-none focus:border-line transition-all"
@@ -534,7 +516,7 @@ export default function CustomersPage() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-semibold text-subtle mb-1 uppercase tracking-wide">Description / Reference</label>
-                  <textarea aria-label="Description / Reference"
+                  <textarea maxLength={2000} readOnly={isSubmitting || Boolean(pendingEntry)} aria-label="Description / Reference"
                     value={payDesc}
                     onChange={(e) => setPayDesc(e.target.value)}
                     className="w-full px-4 py-3 bg-muted border border-line rounded-xl text-sm text-ink focus:outline-none focus:border-line transition-all h-24 resize-none"
@@ -546,7 +528,7 @@ export default function CustomersPage() {
               <div className="p-4 rounded-xl bg-black/40 border border-line text-ink space-y-2">
                 <div className="flex justify-between text-[11px] font-semibold text-subtle uppercase tracking-wide">
                   <span>Current Balance</span>
-                  <span>Impact</span>
+                  <span>{pendingEntry ? 'Original entry' : 'Impact'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="font-semibold">{formatCurrency(selectedCustomer.balance)}</span>
@@ -558,14 +540,14 @@ export default function CustomersPage() {
                 </div>
               </div>
             </div>
-            <div className="p-6 bg-muted/50 flex gap-3">
-              <button type="button" onClick={() => setIsPaymentModalOpen(false)} className="flex-1 px-4 py-3 border border-line rounded-xl font-semibold text-sm text-subtle hover:bg-emphasis transition-all">Cancel</button>
+            <div className="p-6 bg-muted/50 flex gap-3 shrink-0">
+              <button type="button" disabled={isSubmitting} onClick={() => setIsPaymentModalOpen(false)} className="flex-1 px-4 py-3 border border-line rounded-xl font-semibold text-sm text-subtle hover:bg-emphasis transition-all disabled:opacity-40">{pendingEntry ? 'Close, keep draft' : 'Cancel'}</button>
               <button
                 type="submit"
                 disabled={isSubmitting || !payAmount}
                 className="flex-1 px-4 py-3 bg-brand text-on-brand rounded-xl font-semibold text-sm hover:bg-brand-hover transition-all flex items-center justify-center gap-2 disabled:opacity-40"
               >
-                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Entry'}
+                {isSubmitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</> : pendingEntry ? 'Retry confirmation' : 'Save Entry'}
               </button>
             </div>
           </form>
@@ -576,7 +558,7 @@ export default function CustomersPage() {
 }
 
 function LedgerList({ customerUuid, formatCurrency }: { customerUuid: string, formatCurrency: (v: number) => string }) {
-  const { data: ledgerResponse, isLoading } = useSWR(
+  const { data: ledgerResponse, error, isLoading, mutate: refreshLedger } = useSWR(
     API_URL ? `${PROXY}?action=customer_ledger&customerUuid=${customerUuid}` : null,
     fetcher
   );
@@ -588,6 +570,8 @@ function LedgerList({ customerUuid, formatCurrency }: { customerUuid: string, fo
       <Loader2 className="w-8 h-8 animate-spin text-subtle" />
     </div>
   );
+
+  if (error) return <div className="p-5"><DataNotice onRetry={() => refreshLedger()} /></div>;
 
   if (ledger.length === 0) return (
     <div className="p-20 text-center text-subtle">

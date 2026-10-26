@@ -1,514 +1,119 @@
 'use client';
-import Dialog from '@/components/Dialog';
-import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
-import { DESKTOP, saveDesktopInvoice } from '@/lib/desktop';
 
-import React, { useState } from 'react';
-import { X, FileText, Download, Printer, Loader2, Building2, User, Hash, CheckSquare, Square, Search, Eye, EyeOff } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import useSWR from 'swr';
+import { Building2, Check, Download, FileText, Loader2, Printer, Search, SlidersHorizontal, User, X } from 'lucide-react';
+import Dialog from './Dialog';
+import InvoicePreview from './InvoicePreview';
+import { API_URL, PROXY, apiFetch } from '@/lib/api';
+import { DESKTOP, saveDesktopInvoice } from '@/lib/desktop';
+import { invoiceDate, invoiceDueDate, invoiceError, invoiceMoney, invoiceTotals, type InvoiceDraft, type InvoiceTransaction } from '@/lib/invoice';
 
-const fetcher = async (url: string) => {
-  const res = await fetch(url, { method: 'GET', redirect: 'follow' });
-  return res.json();
-};
+type Customer = { uuid: string; name: string; balance: number; phone: string; email?: string; address?: string };
+type Props = { isOpen: boolean; onClose: () => void; transactions: InvoiceTransaction[] };
+const fetcher = async (url: string) => { const response = await apiFetch(url); if (!response.ok) throw new Error('Customer accounts could not be loaded.'); return response.json(); };
+const field = 'field !text-xs !py-2.5';
 
-type Customer = {
-  uuid: string;
-  name: string;
-  balance: number;
-  phone: string;
-  email?: string;
-  address?: string;
-};
-
-type Transaction = {
-  id: string;
-  date: string;
-  productName: string;
-  productSku: string;
-  type: string;
-  qtyChange: number;
-  unitPrice: number;
-  total: number;
-  buyerName: string;
-  description: string;
-  batchId: string;
-  customerUuid?: string;
-};
-
-type InvoiceModalProps = {
-  isOpen: boolean;
-  onClose: () => void;
-  transactions: Transaction[];
-};
-
-const inputClass =
-  'w-full bg-muted border border-line rounded-lg px-3 py-2 text-ink text-sm focus:outline-none focus:border-line focus:ring-1 focus:ring-brand placeholder-subtle';
-
-export default function InvoiceModal(props: InvoiceModalProps) {
+export default function InvoiceModal(props: Props) {
   return props.isOpen ? <InvoiceContent {...props} /> : null;
 }
-function InvoiceContent({ isOpen, onClose, transactions }: InvoiceModalProps) {
+
+function InvoiceContent({ onClose, transactions }: Props) {
   const [generating, setGenerating] = useState(false);
-
-  // Invoice meta fields
-  const [invoiceNo, setInvoiceNo] = useState(() => `INV-${Date.now().toString().slice(-6)}`);
-  const [issueDate, setIssueDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [tab, setTab] = useState('items');
+  const [error, setError] = useState('');
+  const [status, setStatus] = useState('');
+  const [invoiceNo, setInvoiceNo] = useState(() => `INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 6).toUpperCase()}`);
+  const [issueDate, setIssueDate] = useState(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
   const [dueDate, setDueDate] = useState('');
-
-  // Permanent Company Defaults
+  const [taxRate, setTaxRate] = useState('0');
   const [companyName, setCompanyName] = useState('Global Auto Parts');
   const [companyAddress, setCompanyAddress] = useState('House 10A Street 25B New Wassan Pura Lahore');
   const [companyEmail, setCompanyEmail] = useState('aifunk62@gmail.com');
   const [companyPhone, setCompanyPhone] = useState('03114437441');
-
   const [clientSearch, setClientSearch] = useState('');
   const [clientAddress, setClientAddress] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [notes, setNotes] = useState('Thank you for your business!');
-  const [taxRate, setTaxRate] = useState('0');
-  const [includePreviousBalance, setIncludePreviousBalance] = useState(false);
-  const [showBalanceValue, setShowBalanceValue] = useState(false);
-
-  const { data: customersRes } = useSWR(
-    isOpen && API_URL ? `${PROXY}?action=customers` : null,
-    fetcher
-  );
-
-  const customers: Customer[] = React.useMemo(() =>
-    Array.isArray(customersRes?.data) ? customersRes.data : []
-  , [customersRes]);
-
-  const query = clientSearch.toLowerCase();
-  const selectedCustomer = customers.find(c => c.name.toLowerCase() === query || `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === query);
-  const clientName = selectedCustomer?.name || clientSearch;
-  const updateClientSearch = (value: string) => {
-    setClientSearch(value);
-    const match = customers.find(c => c.name.toLowerCase() === value.toLowerCase() || `[${c.phone || 'No Phone'}] ${c.name}`.toLowerCase() === value.toLowerCase());
-    setClientAddress(match?.address || '');
-    setClientEmail(match?.email || '');
-  };
-
-  // Filter & Selection states
-  const [includeExpenses, setIncludeExpenses] = useState(false);
+  const [showAccountBalance, setShowAccountBalance] = useState(false);
+  const [includeStockIn, setIncludeStockIn] = useState(false);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [search, setSearch] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const { data: customersResponse, error: customerError } = useSWR(API_URL ? `${PROXY}?action=customers` : null, fetcher);
+  const customers: Customer[] = useMemo(() => Array.isArray(customersResponse?.data) ? customersResponse.data : [], [customersResponse]);
+  const selectedCustomer = customers.find(customer => customer.name.toLowerCase() === clientSearch.toLowerCase() || `[${customer.phone || 'No phone'}] ${customer.name}`.toLowerCase() === clientSearch.toLowerCase());
+  const clientName = selectedCustomer?.name ?? clientSearch;
 
-  const filteredTx = transactions.filter((t) => {
-    if (selectedCustomer && t.customerUuid !== selectedCustomer.uuid) return false;
-    if (!includeExpenses && t.type !== 'Out') return false;
-    if (dateFrom && new Date(t.date) < new Date(dateFrom)) return false;
-    if (dateTo && new Date(t.date) > new Date(dateTo + 'T23:59:59')) return false;
+  function updateClient(value: string) {
+    setClientSearch(value);
+    const customer = customers.find(customer => customer.name.toLowerCase() === value.toLowerCase() || `[${customer.phone || 'No phone'}] ${customer.name}`.toLowerCase() === value.toLowerCase());
+    setClientAddress(customer?.address ?? ''); setClientEmail(customer?.email ?? '');
+  }
+
+  // Search narrows the picker only. Date/customer/type filters define the
+  // invoice scope, and hidden selections outside that scope are not exported.
+  const scoped = transactions.filter(item => {
+    if (selectedCustomer && item.customerUuid !== selectedCustomer.uuid) return false;
+    if (!includeStockIn && item.type !== 'Out') return false;
+    if (dateFrom && new Date(item.date) < new Date(`${dateFrom}T00:00:00`)) return false;
+    if (dateTo && new Date(item.date) > new Date(`${dateTo}T23:59:59.999`)) return false;
     return true;
   });
+  const shown = scoped.filter(item => `${item.productName} ${item.productSku} ${item.buyerName}`.toLowerCase().includes(search.toLowerCase()));
+  const selected = scoped.filter(item => selectedIds.has(item.id));
+  const draft: InvoiceDraft = { invoiceNo, issueDate, dueDate, taxRate: Number(taxRate), companyName, companyAddress, companyEmail, companyPhone, clientName, clientAddress, clientEmail, notes, transactions: selected, ...(selectedCustomer && showAccountBalance ? { accountBalance: selectedCustomer.balance } : {}) };
+  const validation = dateFrom && dateTo && dateFrom > dateTo ? 'The transaction start date must be before its end date.' : invoiceError(draft);
+  let totals = { subtotal: 0, tax: 0, total: 0 };
+  try { totals = invoiceTotals(selected, Number(taxRate)); } catch { /* Validation explains invalid financial values before export. */ }
 
-  const selectedTx = filteredTx.filter((t) => selectedIds.has(t.id));
+  function toggle(id: string) {
+    setSelectedIds(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+    setError(''); setStatus('');
+  }
 
-  const subtotal = selectedTx.reduce((s, t) => s + t.total, 0);
-  const tax = subtotal * (Number(taxRate) / 100);
-
-  const fmt = (v: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(v);
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const selectAll = () => setSelectedIds(new Set(filteredTx.map((t) => t.id)));
-  const deselectAll = () => setSelectedIds(new Set());
-
-  const handleGenerate = async (print = false) => {
-    if (selectedTx.length === 0) return;
-    setGenerating(true);
+  async function generate(print = false) {
+    if (generating) return;
+    if (validation) { setError(validation); return; }
+    setGenerating(true); setError(''); setStatus('');
     try {
-      const jsPDFModule = await import('jspdf');
-      const jsPDF = jsPDFModule.default;
-      const autoTableModule = await import('jspdf-autotable');
-      const autoTable = autoTableModule.default;
+      const { createInvoicePdf } = await import('@/lib/invoice-pdf');
+      const document = createInvoicePdf(draft);
+      const filename = `${invoiceNo.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80)}.pdf`;
+      if (DESKTOP) {
+        const completed = await saveDesktopInvoice(document.output('arraybuffer'), filename, print);
+        setStatus(completed ? print ? 'Invoice opened in your PDF reader for preview and printing.' : 'Invoice saved successfully.' : 'Save cancelled. Your invoice details are still here.');
+      } else { document.save(filename); setStatus(`PDF prepared with ${document.getNumberOfPages()} page${document.getNumberOfPages() === 1 ? '' : 's'}.`); }
+    } catch (error) { setError(error instanceof Error ? error.message : 'The PDF could not be created. Your invoice details are still here.'); }
+    finally { setGenerating(false); }
+  }
 
-      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pageW = doc.internal.pageSize.getWidth();
-      const pageH = doc.internal.pageSize.getHeight();
-      const margin = 18;
-      const contentW = pageW - margin * 2;
-
-      doc.setFillColor(255, 255, 255);
-      doc.rect(0, 0, pageW, pageH, 'F');
-      doc.setFillColor(0, 0, 0);
-      doc.rect(0, 0, pageW, 1.5, 'F');
-
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(22);
-      doc.setTextColor(0, 0, 0);
-      doc.text(companyName || 'Global Auto Parts', margin, 22);
-
-      if (companyAddress) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(100, 100, 100);
-        doc.text(companyAddress, margin, 28);
-      }
-      const contactLine = [companyEmail, companyPhone].filter(Boolean).join('  |  ');
-      if (contactLine) {
-        doc.setFontSize(8); doc.setTextColor(100, 100, 100);
-        doc.text(contactLine, margin, companyAddress ? 33 : 28);
-      }
-
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(32); doc.setTextColor(0, 0, 0);
-      doc.text('INVOICE', pageW - margin, 22, { align: 'right' });
-
-      const metaStartY = 28;
-      const metaLines: [string, string][] = [
-        ['Invoice No:', invoiceNo],
-        ['Issue Date:', new Date(issueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })],
-      ];
-      if (dueDate) metaLines.push(['Due Date:', new Date(dueDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })]);
-
-      doc.setFontSize(8);
-      metaLines.forEach(([label, value], i) => {
-        const y = metaStartY + i * 5.5;
-        doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100);
-        doc.text(label, pageW - margin - 35, y, { align: 'left' });
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(0, 0, 0);
-        doc.text(value, pageW - margin, y, { align: 'right' });
-      });
-
-      const dividerY = 48;
-      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.4);
-      doc.line(margin, dividerY, pageW - margin, dividerY);
-
-      const billY = dividerY + 8;
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(100, 100, 100);
-      doc.text('BILL TO', margin, billY);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(0, 0, 0);
-      doc.text(clientName || 'Client', margin, billY + 6);
-
-      let currentBillY = billY + 11;
-      if (clientAddress) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
-        doc.text(clientAddress, margin, currentBillY);
-        currentBillY += 5;
-      }
-      if (clientEmail) {
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(80, 80, 80);
-        doc.text(clientEmail, margin, currentBillY);
-      }
-
-      const tableStartY = billY + 28;
-      autoTable(doc, {
-        startY: tableStartY,
-        margin: { left: margin, right: margin },
-        head: [['#', 'Product', 'SKU', 'Date', 'Type', 'Qty', 'Unit Price', 'Total']],
-        body: selectedTx.map((t, i) => [
-          String(i + 1), t.productName, t.productSku || '-',
-          new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-          t.type === 'Out' ? 'Sale' : 'Stock In',
-          t.qtyChange, fmt(t.unitPrice), fmt(t.total),
-        ]),
-        headStyles: { fillColor: [248, 250, 252], textColor: [100, 100, 100], fontStyle: 'bold', fontSize: 8, halign: 'center' },
-        bodyStyles: { fillColor: [255, 255, 255], textColor: [40, 40, 40], fontSize: 8.5, lineColor: [240, 240, 240], lineWidth: 0.1, halign: 'center' },
-        alternateRowStyles: { fillColor: [252, 252, 252] },
-        columnStyles: {
-          0: { cellWidth: 10, textColor: [120, 120, 120] },
-          1: { cellWidth: 'auto', fontStyle: 'bold', textColor: [0, 0, 0] },
-          2: { cellWidth: 16 },
-          3: { cellWidth: 20 },
-          4: { cellWidth: 14 },
-          5: { cellWidth: 12 },
-          6: { cellWidth: 26 },
-          7: { cellWidth: 30, fontStyle: 'bold', textColor: [0, 0, 0] },
-        },
-        styles: { overflow: 'linebreak', cellPadding: { top: 5, right: 2, bottom: 5, left: 2 } },
-      });
-
-      const finalY = (doc as typeof doc & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
-      const totalsX = pageW - margin - 65;
-      const drawTotalRow = (label: string, value: string, y: number, bold = false, highlight = false) => {
-        if (highlight) { doc.setFillColor(0, 0, 0); doc.roundedRect(totalsX - 2, y - 5, 65 + 2, 9, 1.5, 1.5, 'F'); }
-        doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setFontSize(bold ? 9 : 8);
-        doc.setTextColor(highlight ? 255 : bold ? 0 : 80);
-        doc.text(label, totalsX + 2, y); doc.text(value, pageW - margin, y, { align: 'right' });
-      };
-
-      let ty = finalY;
-      drawTotalRow('Subtotal', fmt(subtotal), ty);
-
-      if (Number(taxRate) > 0) {
-        ty += 7;
-        drawTotalRow(`Tax (${taxRate}%)`, fmt(tax), ty);
-      }
-
-      if (selectedCustomer && includePreviousBalance) {
-        ty += 7;
-        const balanceType = selectedCustomer.balance >= 0 ? '(Receivable)' : '(Payable)';
-        drawTotalRow(`Account balance ${balanceType} (separate)`, fmt(selectedCustomer.balance), ty);
-      }
-
-      doc.setDrawColor(220, 220, 220); doc.setLineWidth(0.3); doc.line(totalsX, ty + 3, pageW - margin, ty + 3);
-      ty += 8;
-
-      const totalDue = subtotal + tax;
-      drawTotalRow('TOTAL DUE', fmt(totalDue), ty + 2, true, true);
-
-      if (notes) {
-        const notesY = Math.max(ty + 20, finalY + 40);
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(100, 100, 100); doc.text('NOTES', margin, notesY);
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(80, 80, 80);
-        doc.text(notes, margin, notesY + 5, { maxWidth: contentW * 0.55 });
-      }
-
-      doc.setFillColor(245, 245, 245); doc.rect(0, pageH - 14, pageW, 14, 'F');
-      doc.setFontSize(7); doc.setTextColor(100, 100, 100);
-      doc.text(companyName, margin, pageH - 5.5);
-      doc.text(`Generated ${new Date().toLocaleString()}`, pageW - margin, pageH - 5.5, { align: 'right' });
-
-      if (DESKTOP) await saveDesktopInvoice(doc.output('arraybuffer'), `${invoiceNo}.pdf`, print);
-      else doc.save(`${invoiceNo}.pdf`);
-    } catch { alert('Failed to generate PDF.'); } finally { setGenerating(false); }
-  };
-
-  return (
-    <Dialog onClose={onClose} label="Generate invoice" className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={onClose} />
-      <div className="modal-panel relative w-full max-w-4xl bg-surface border border-line rounded-2xl shadow-dialog z-10 mx-4 max-h-[95vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-line bg-muted/60 rounded-t-2xl shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-brand rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-on-brand" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-ink">Generate Invoice PDF</h3>
-              <p className="text-xs text-subtle">{selectedTx.length} items selected for invoice</p>
-            </div>
-          </div>
-          <button onClick={onClose} className="text-subtle hover:text-ink transition-colors">
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        <div className="flex flex-col sm:flex-row flex-1 overflow-y-auto sm:overflow-hidden">
-          {/* Left Side: Transaction Selection */}
-          <div className="w-full sm:w-1/2 border-b sm:border-b-0 sm:border-r border-line flex flex-col shrink-0 sm:shrink min-h-[240px] max-h-[360px] sm:max-h-none overflow-hidden">
-            <div className="p-4 border-b border-line bg-muted/30 space-y-3">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-semibold text-subtle uppercase tracking-wider">Select Transactions</p>
-                <div className="flex gap-2">
-                  <button onClick={selectAll} className="text-[11px] bg-emphasis hover:bg-emphasis text-body px-2 py-1 rounded transition-colors uppercase font-semibold">Select All</button>
-                  <button onClick={deselectAll} className="text-[11px] bg-emphasis hover:bg-emphasis text-body px-2 py-1 rounded transition-colors uppercase font-semibold">Deselect All</button>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className={`${inputClass} !py-1.5`} placeholder="From" title="From Date" />
-                <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className={`${inputClass} !py-1.5`} placeholder="To" title="To Date" />
-              </div>
-
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={includeExpenses} onChange={(e) => setIncludeExpenses(e.target.checked)} className="w-3.5 h-3.5 rounded bg-muted border-line" />
-                <span className="text-xs text-subtle">Include Expenses (Stock In)</span>
-              </label>
-            </div>
-
-            <div className="flex-1 overflow-y-auto divide-y divide-line/50">
-              {filteredTx.length === 0 ? (
-                <div className="p-10 text-center text-subtle text-sm italic">No transactions match filters</div>
-              ) : (
-                filteredTx.map((t) => (
-                  <div
-                    key={t.id}
-                    role="checkbox"
-                    tabIndex={0}
-                    aria-checked={selectedIds.has(t.id)}
-                    aria-label={`${t.productName}, ${new Date(t.date).toLocaleDateString()}, ${fmt(t.total)}`}
-                    onKeyDown={event => { if (event.key === ' ' || event.key === 'Enter') { event.preventDefault(); toggleSelect(t.id); } }}
-                    onClick={() => toggleSelect(t.id)}
-                    className={`p-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-muted/50 ${selectedIds.has(t.id) ? 'bg-muted/30' : ''}`}
-                  >
-                    <div className="mt-1">
-                      {selectedIds.has(t.id) ? (
-                        <CheckSquare className="w-4 h-4 text-ink" />
-                      ) : (
-                        <Square className="w-4 h-4 text-subtle" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-start gap-2">
-                        <p className="text-sm font-semibold text-ink truncate">{t.productName}</p>
-                        <p className="text-sm font-semibold text-ink tabular-nums shrink-0">{fmt(t.total)}</p>
-                      </div>
-                      <div className="flex justify-between text-[11px] text-subtle mt-0.5">
-                        <p>{new Date(t.date).toLocaleDateString()}</p>
-                        <p>{t.qtyChange} units &bull; {fmt(t.unitPrice)}</p>
-                      </div>
-                      {t.buyerName && <p className="text-[11px] text-subtle mt-1 italic truncate">Buyer: {t.buyerName}</p>}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Right Side: Invoice Configuration */}
-          <div className="w-full sm:w-1/2 flex flex-col shrink-0 sm:shrink sm:overflow-hidden bg-muted/10">
-            <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              {/* Invoice Meta */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-subtle uppercase tracking-wider flex items-center gap-1.5"><Hash className="w-3.5 h-3.5" /> Invoice Details</p>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Invoice No.</label>
-                    <input aria-label="Invoice No." type="text" value={invoiceNo} onChange={(e) => setInvoiceNo(e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Tax Rate (%)</label>
-                    <input aria-label="Tax Rate (%)" type="number" value={taxRate} onChange={(e) => setTaxRate(e.target.value.replace(/^0+(?=\d)/, ''))} className={inputClass} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Issue Date</label>
-                    <input aria-label="Issue Date" type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className={inputClass} />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Due Date</label>
-                    <input aria-label="Due Date" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={inputClass} />
-                  </div>
-                </div>
-              </div>
-
-              {/* Company Info */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-subtle uppercase tracking-wider flex items-center gap-1.5"><Building2 className="w-3.5 h-3.5" /> Your Business</p>
-                <input type="text" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className={inputClass} placeholder="Company Name" />
-                <input type="text" value={companyAddress} onChange={(e) => setCompanyAddress(e.target.value)} className={inputClass} placeholder="Address" />
-                <div className="grid grid-cols-2 gap-3">
-                  <input type="email" value={companyEmail} onChange={(e) => setCompanyEmail(e.target.value)} className={inputClass} placeholder="Email" />
-                  <input type="text" value={companyPhone} onChange={(e) => setCompanyPhone(e.target.value)} className={inputClass} placeholder="Phone" />
-                </div>
-              </div>
-
-              {/* Client Info */}
-              <div className="space-y-3">
-                <p className="text-xs font-semibold text-subtle uppercase tracking-wider flex items-center gap-1.5"><User className="w-3.5 h-3.5" /> Client (Bill To)</p>
-                <div className="relative">
-                  <input
-                    required
-                    type="text"
-                    value={clientSearch}
-                    onChange={(e) => updateClientSearch(e.target.value)}
-                    className={`${inputClass} !pl-9`}
-                    placeholder="Search existing or type new name..."
-                    list="invoice-customers-datalist"
-                  />
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-subtle pointer-events-none" />
-                  <datalist id="invoice-customers-datalist">
-                    {customers.map(c => (
-                      <option key={c.uuid} value={`[${c.phone || 'No Phone'}] ${c.name}`} />
-                    ))}
-                  </datalist>
-                </div>
-                {selectedCustomer && (
-                  <div className="mt-2 space-y-2">
-                    <div className="p-2 bg-info-soft border border-info/20 rounded-lg flex items-center justify-between group/bal">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-semibold text-info uppercase tracking-wider">Current Account Balance:</span>
-                        <button
-                          type="button"
-                          onClick={() => setShowBalanceValue(!showBalanceValue)}
-                          className="p-1 text-info hover:text-info transition-colors"
-                          title={showBalanceValue ? "Hide Balance" : "Show Balance"}
-                        >
-                          {showBalanceValue ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                        </button>
-                      </div>
-                      <span className={`text-xs font-semibold transition-all ${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-success' : selectedCustomer.balance < 0 ? 'text-danger' : 'text-subtle') : 'text-info'}`}>
-                        {showBalanceValue ? fmt(selectedCustomer.balance) : 'PKR ••••'}
-                      </span>
-                    </div>
-                    <label className="flex items-center gap-2 cursor-pointer select-none group">
-                      <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${includePreviousBalance ? 'bg-brand border-line' : 'bg-transparent border-line group-hover:border-line'}`}>
-                        {includePreviousBalance && <CheckSquare className="w-3.5 h-3.5 text-on-brand" />}
-                        <input
-                          type="checkbox"
-                          className="hidden"
-                          checked={includePreviousBalance}
-                          onChange={(e) => setIncludePreviousBalance(e.target.checked)}
-                        />
-                      </div>
-                      <span className="text-[11px] font-semibold text-subtle group-hover:text-body transition-colors uppercase tracking-tight">Show account balance separately</span>
-                    </label>
-                  </div>
-                )}
-                <input type="text" value={clientAddress} onChange={(e) => setClientAddress(e.target.value)} className={inputClass} placeholder="Client Address (Optional)" />
-                <input type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} className={inputClass} placeholder="Client Email (Optional)" />
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-[11px] text-subtle mb-1 uppercase font-semibold">Notes / Terms</label>
-                <textarea aria-label="Notes / Terms" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} className={`${inputClass} resize-none`} />
-              </div>
-            </div>
-
-            {/* Footer Summary */}
-            <div className="p-5 border-t border-line bg-muted/40">
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-xs">
-                  <p className="text-subtle uppercase font-semibold tracking-wide">Subtotal</p>
-                  <p className="text-subtle font-medium">{fmt(subtotal)}</p>
-                </div>
-                <div className="text-right">
-                  {selectedCustomer && (
-                    <div className="flex flex-col items-end gap-0.5 mb-1 text-[11px]">
-                       <div className="flex gap-3 text-subtle">
-                         <span>Subtotal:</span>
-                         <span className="text-subtle font-mono">{fmt(subtotal)}</span>
-                       </div>
-                       {includePreviousBalance && (
-                         <div className="flex gap-3 text-subtle">
-                           <span>Balance:</span>
-                           <span className={`${showBalanceValue ? (selectedCustomer.balance > 0 ? 'text-success' : selectedCustomer.balance < 0 ? 'text-danger' : 'text-subtle') : 'text-subtle'} font-mono`}>
-                             {showBalanceValue ? fmt(selectedCustomer.balance) : 'PKR ••••'}
-                           </span>
-                         </div>
-                       )}
-                       <div className="w-16 h-px bg-emphasis my-0.5" />
-                    </div>
-                  )}
-                  <p className="text-[11px] text-subtle uppercase font-semibold tracking-wide">Total Due</p>
-                  <p className="text-2xl font-semibold text-ink tabular-nums">{fmt(subtotal + tax)}</p>
-                </div>
-              </div>
-              <div className="flex gap-3">
-                <button onClick={onClose} className="flex-1 bg-muted hover:bg-emphasis text-ink py-2.5 rounded-lg font-semibold transition-colors border border-line text-sm">Cancel</button>
-                <button
-                  onClick={() => handleGenerate()}
-                  disabled={generating || selectedTx.length === 0 || !clientName}
-                  className="flex-1 bg-brand hover:bg-brand-hover disabled:opacity-50 text-on-brand py-2.5 rounded-lg font-semibold transition-colors shadow-sm flex items-center justify-center gap-2 text-sm"
-                >
-                  {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                  Export PDF {selectedTx.length > 0 && `(${selectedTx.length})`}
-                </button>
-                {DESKTOP && (
-                  <button
-                    onClick={() => handleGenerate(true)}
-                    disabled={generating || selectedTx.length === 0 || !clientName}
-                    title="Open the invoice in your PDF reader to preview and print"
-                    className="bg-muted hover:bg-emphasis disabled:opacity-50 text-ink px-4 rounded-lg border border-line flex items-center gap-2 text-sm font-semibold"
-                  >
-                    <Printer className="w-4 h-4" /> Print PDF
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+  const sections = [{ key: 'items', label: '1. Select items' }, { key: 'details', label: '2. Invoice details' }, { key: 'preview', label: '3. Preview' }];
+  return <Dialog label="Invoice builder" busy={generating} onClose={onClose}>
+    <div className="absolute inset-0 bg-[#091822]/60 backdrop-blur-sm modal-backdrop" onClick={() => { if (!generating) onClose(); }} />
+    <section className="modal-panel relative w-full max-w-[1440px] h-[92dvh] bg-surface border border-line rounded-2xl shadow-dialog flex flex-col overflow-hidden">
+      <header className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-line shrink-0"><div className="flex items-center gap-3"><span className="p-2.5 bg-brand-soft text-brand-ink rounded-xl"><FileText size={20} /></span><div><h2 className="font-semibold text-lg">Invoice builder</h2><p className="text-xs text-subtle mt-0.5">Choose your items, add the details, and review before exporting.</p></div></div><button disabled={generating} onClick={onClose} aria-label="Close invoice builder" className="icon-button shrink-0"><X size={17} /></button></header>
+      <nav aria-label="Invoice builder steps" className="xl:hidden flex gap-1 p-2 border-b border-line shrink-0">{sections.map(section => <button key={section.key} onClick={() => setTab(section.key)} aria-pressed={tab === section.key} className={`flex-1 rounded-lg px-2 py-2 text-[11px] font-medium ${tab === section.key ? 'bg-brand-soft text-brand-ink' : 'text-subtle hover:bg-muted'}`}>{section.label}</button>)}</nav>
+      <div className="min-h-0 flex-1 xl:grid xl:grid-cols-[280px_320px_minmax(0,1fr)]">
+        <section className={`${tab === 'items' ? 'flex' : 'hidden'} xl:flex flex-col h-full min-h-0 border-r border-line`} aria-label="Select invoice items">
+          <div className="p-4 border-b border-line space-y-3"><h3 className="text-sm font-semibold">Transactions <span className="text-subtle text-xs font-normal ml-1">{selected.length} selected</span></h3><div className="relative"><Search size={15} className="absolute top-3 left-3 text-subtle" /><input aria-label="Search invoice transactions" value={search} onChange={event => setSearch(event.target.value)} placeholder="Product, SKU or customer…" className={`${field} !pl-9`} /></div><div className="grid grid-cols-2 gap-2"><div><label className="field-label !text-[10px]" htmlFor="invoice-from">From</label><input id="invoice-from" type="date" value={dateFrom} onChange={event => setDateFrom(event.target.value)} className={`${field} !px-2`} /></div><div><label className="field-label !text-[10px]" htmlFor="invoice-to">To</label><input id="invoice-to" type="date" value={dateTo} onChange={event => setDateTo(event.target.value)} className={`${field} !px-2`} /></div></div><label className="flex items-center gap-2 text-xs text-subtle"><input type="checkbox" checked={includeStockIn} onChange={event => setIncludeStockIn(event.target.checked)} /> Include stock-in entries</label><div className="flex items-center justify-between text-xs"><button className="text-brand-ink font-medium" onClick={() => setSelectedIds(current => new Set([...current, ...shown.map(item => item.id)]))}>Select shown</button><button className="text-subtle hover:text-ink" onClick={() => setSelectedIds(new Set())}>Clear selection</button></div></div>
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-line">{shown.length ? shown.map(item => <label key={item.id} className={`flex gap-3 items-start p-4 cursor-pointer hover:bg-muted transition-colors ${selectedIds.has(item.id) ? 'bg-brand-soft/50' : ''}`}><input type="checkbox" aria-label={`Select ${item.productName}, ${invoiceDate(item.date)}, ${invoiceMoney(item.total)}`} checked={selectedIds.has(item.id)} onChange={() => toggle(item.id)} className="mt-1 shrink-0" /><span className="flex-1 min-w-0"><span className="block text-xs font-semibold break-words">{item.productName}</span><span className="block text-[10px] text-subtle mt-1">{item.productSku} · {invoiceDate(item.date)}</span><span className="flex flex-wrap items-center gap-2 justify-between mt-2 text-[11px]"><span className="text-subtle">{item.qtyChange} units · {item.type === 'Out' ? 'Sale' : 'Stock in'}</span><span className="font-medium tabular-nums">{invoiceMoney(item.total)}</span></span>{item.buyerName && <span className="block text-[10px] text-subtle mt-1 truncate">{item.buyerName}</span>}</span></label>) : <div className="p-8 text-center text-xs text-subtle leading-relaxed">No transactions match these filters. Try another date range or customer.</div>}</div>
+        </section>
+        <section aria-label="Invoice details" className={`${tab === 'details' ? 'block' : 'hidden'} xl:block h-full overflow-y-auto min-h-0 p-5 space-y-6 border-r border-line`}>
+          {customerError && <p className="text-xs text-warning bg-warning-soft rounded-lg p-3">Customer accounts could not be loaded. You can enter a customer name manually.</p>}
+          <div className="space-y-3"><h3 className="flex items-center gap-2 text-sm font-semibold"><SlidersHorizontal size={15} className="text-brand-ink" /> Invoice details</h3><div><label htmlFor="invoice-number" className="field-label">Invoice number</label><input id="invoice-number" maxLength={80} value={invoiceNo} onChange={event => setInvoiceNo(event.target.value)} className={field} /></div><div className="grid grid-cols-2 gap-3"><div><label htmlFor="invoice-issued" className="field-label">Issue date</label><input id="invoice-issued" type="date" required value={issueDate} onChange={event => setIssueDate(event.target.value)} className={field} /></div><div><label htmlFor="invoice-due" className="field-label">Due date</label><input id="invoice-due" type="date" min={issueDate} value={dueDate} onChange={event => setDueDate(event.target.value)} className={field} /></div></div><div className="flex gap-1.5">{[7, 14, 30].map(days => <button key={days} type="button" onClick={() => setDueDate(invoiceDueDate(issueDate, days))} className="flex-1 px-2 py-1.5 text-[10px] text-brand-ink bg-brand-soft rounded-md hover:bg-emphasis">Due in {days} days</button>)}</div><div><label htmlFor="invoice-tax" className="field-label">Tax rate (%)</label><input id="invoice-tax" type="number" min="0" max="100" step="0.01" value={taxRate} onChange={event => setTaxRate(event.target.value.replace(/^0+(?=\d)/, ''))} className={field} /></div></div>
+          <div className="space-y-3 border-t border-line pt-5"><h3 className="flex items-center gap-2 text-sm font-semibold"><Building2 size={15} className="text-brand-ink" /> Your business</h3><div><label htmlFor="invoice-company" className="field-label">Business name</label><input id="invoice-company" maxLength={160} value={companyName} onChange={event => setCompanyName(event.target.value)} className={field} /></div><div><label htmlFor="invoice-address" className="field-label">Business address</label><textarea id="invoice-address" maxLength={600} value={companyAddress} onChange={event => setCompanyAddress(event.target.value)} rows={2} className={field} /></div><div><label htmlFor="invoice-email" className="field-label">Business email</label><input id="invoice-email" type="email" maxLength={254} value={companyEmail} onChange={event => setCompanyEmail(event.target.value)} className={field} /></div><div><label htmlFor="invoice-phone" className="field-label">Business phone</label><input id="invoice-phone" maxLength={60} value={companyPhone} onChange={event => setCompanyPhone(event.target.value)} className={field} /></div></div>
+          <div className="space-y-3 border-t border-line pt-5"><h3 className="flex items-center gap-2 text-sm font-semibold"><User size={15} className="text-brand-ink" /> Bill to</h3><div><label htmlFor="invoice-client" className="field-label">Customer name</label><input id="invoice-client" maxLength={160} list="invoice-customers" placeholder="Find a customer or enter a name" value={clientSearch} onChange={event => updateClient(event.target.value)} className={field} /><datalist id="invoice-customers">{customers.map(customer => <option key={customer.uuid} value={`[${customer.phone || 'No phone'}] ${customer.name}`} />)}</datalist></div><div><label htmlFor="invoice-client-address" className="field-label">Customer address</label><textarea id="invoice-client-address" maxLength={600} rows={2} value={clientAddress} onChange={event => setClientAddress(event.target.value)} className={field} /></div><div><label htmlFor="invoice-client-email" className="field-label">Customer email</label><input id="invoice-client-email" type="email" maxLength={254} value={clientEmail} onChange={event => setClientEmail(event.target.value)} className={field} /></div>{selectedCustomer && <label className="flex items-start gap-2 text-xs leading-relaxed text-subtle p-3 border border-line rounded-lg"><input type="checkbox" checked={showAccountBalance} onChange={event => setShowAccountBalance(event.target.checked)} className="mt-0.5" /><span>Show account balance separately<br /><span className="text-[10px]">For reference; it does not change the invoice total.</span></span></label>}</div>
+          <div className="border-t border-line pt-5"><label htmlFor="invoice-notes" className="field-label">Notes & payment terms</label><textarea id="invoice-notes" maxLength={4000} value={notes} onChange={event => setNotes(event.target.value)} rows={4} className={field} /><p className="text-[10px] text-subtle mt-1 text-right">{notes.length} / 4,000</p></div>
+        </section>
+        <section aria-label="Invoice preview" className={`${tab === 'preview' ? 'block' : 'hidden'} xl:block h-full overflow-y-auto min-h-0 bg-muted p-4 sm:p-6`}><div className="flex items-center justify-between mb-4"><h3 className="text-xs font-semibold text-body">Live layout preview</h3><span className="text-[10px] text-subtle">A4 · Portrait</span></div><InvoicePreview draft={draft} totals={totals} /></section>
       </div>
-    </Dialog>
-  );
+      <footer className="border-t border-line bg-surface p-4 sm:px-6 shrink-0 space-y-3">
+        {error && <p role="alert" className="text-sm text-danger bg-danger-soft rounded-lg p-3">{error}</p>}
+        {status && <p role="status" className="flex items-center gap-2 text-xs text-success"><Check size={14} />{status}</p>}
+        <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><p className="text-xs font-medium">{selected.length} item{selected.length === 1 ? '' : 's'} selected <span className="text-subtle font-normal">· Total due</span> <span className="font-semibold tabular-nums ml-1">{invoiceMoney(totals.total)}</span></p><p className="text-[11px] text-subtle mt-1">{validation || (includeStockIn ? 'Stock-in entries are included in this document total.' : 'Ready to export. All selected items will be included.')}</p></div><div className="flex gap-2 w-full sm:w-auto"><button disabled={generating} onClick={onClose} className="btn-secondary">Close</button><button disabled={generating || Boolean(validation)} onClick={() => generate()} className="btn-primary flex-1 sm:flex-none disabled:opacity-50">{generating ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} {generating ? 'Preparing…' : 'Export PDF'}</button>{DESKTOP && <button disabled={generating || Boolean(validation)} onClick={() => generate(true)} className="btn-secondary disabled:opacity-50" title="Open the invoice in your PDF reader for preview and printing"><Printer size={15} /> Print PDF</button>}</div></div>
+      </footer>
+    </section>
+  </Dialog>;
 }

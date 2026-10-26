@@ -39,3 +39,13 @@ test('old receipts reach the database for committed-result lookup instead of bei
   assert.equal(receipt.payload.requestId,'11111111-1111-4111-8111-111111111111');
   finishOperation(receipt.key);
 });
+
+test('an explicitly recovered financial receipt takes precedence over stale same-body cache state', async () => {
+  const body = { action: 'record_customer_payment', customerUuid: '11111111-1111-4111-8111-111111111111', type: 'Receivable', amount: 20000, description: 'Recovered receipt precedence' };
+  const stale = await prepareOperation(body);
+  const recovered = await prepareOperation({ ...body, requestId: '22222222-2222-4222-8222-222222222222', requestedAt: 1234 });
+  assert.notEqual(recovered.payload.requestId, stale.payload.requestId);
+  assert.equal(recovered.payload.requestId, '22222222-2222-4222-8222-222222222222');
+  assert.equal(recovered.payload.requestedAt, 1234);
+  finishOperation(recovered.key);
+});

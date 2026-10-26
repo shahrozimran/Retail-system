@@ -16,11 +16,14 @@ export async function prepareOperation(payload: Record<string, unknown>) {
   delete data.requestId; delete data.requestedAt;
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(canonical(data))));
   const key = 'RETAIL_PENDING_' + Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, '0')).join('');
-  let receipt = pending.get(key);
+  // A recovered draft carries the exact operation identity that was submitted.
+  // It takes precedence over an older same-body receipt in this tab's cache.
+  let receipt: Receipt | undefined = typeof payload.requestId === 'string' && typeof payload.requestedAt === 'number'
+    ? { requestId: payload.requestId, requestedAt: payload.requestedAt }
+    : pending.get(key);
   if (!receipt) {
     try { receipt = JSON.parse(storage()?.getItem(key) || 'null') || undefined; } catch { /* Memory fallback when browser storage is disabled. */ }
   }
-  if (!receipt && typeof payload.requestId === 'string' && typeof payload.requestedAt === 'number') receipt = { requestId: payload.requestId, requestedAt: payload.requestedAt };
   if (!receipt) receipt = { requestId: crypto.randomUUID(), requestedAt: Date.now() };
   // PostgreSQL checks saved results before timestamp validation. Preserve old
   // receipts so a lost response can still resolve to its committed result.

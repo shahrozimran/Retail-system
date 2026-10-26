@@ -1,6 +1,7 @@
 import Dialog from '@/components/Dialog';
 import { errorMessage } from '@/lib/errors';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { formatMoney } from '@/lib/money';
 import React, { useState, useMemo } from 'react';
 import { ArrowLeftRight, X, Loader2, Plus, Trash2, Search } from 'lucide-react';
 import useSWR, { mutate } from 'swr';
@@ -147,8 +148,7 @@ function TransactionContent({ isOpen, onClose, onSuccess }: Props) {
     return sum + qty * price;
   }, 0);
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+  const formatCurrency = formatMoney;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

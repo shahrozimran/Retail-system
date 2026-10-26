@@ -4,6 +4,7 @@ import PageHeading from '@/components/PageHeading';
 import SummaryStrip from '@/components/SummaryStrip';
 import { errorMessage } from '@/lib/errors';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { formatMoney } from '@/lib/money';
 
 import React, { useState, useMemo } from 'react';
 import useSWR from 'swr';
@@ -256,8 +257,7 @@ export default function Inventory() {
     }
   };
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+  const formatCurrency = formatMoney;
 
   const calculatePotentialProduction = () => {
     if (!pRawMaterials || pRawMaterials.length === 0) return 0;

@@ -3,6 +3,7 @@ import PageHeading from '@/components/PageHeading';
 import SummaryStrip from '@/components/SummaryStrip';
 import { useMounted } from '@/hooks/useMounted';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { formatMoney } from '@/lib/money';
 
 import { useState } from 'react';
 import useSWR from 'swr';
@@ -103,8 +104,7 @@ export default function Transactions() {
     });
   };
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+  const formatCurrency = formatMoney;
 
   const filteredBatches = batches.filter((batch) => {
     if (typeFilter !== 'all' && !batch.items.some(item => item.type === typeFilter)) return false;

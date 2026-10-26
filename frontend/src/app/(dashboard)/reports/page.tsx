@@ -2,6 +2,7 @@
 import PageHeading from '@/components/PageHeading';
 import { useMounted } from '@/hooks/useMounted';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { formatMoney } from '@/lib/money';
 
 import React, { useState } from 'react';
 import useSWR from 'swr';
@@ -54,8 +55,7 @@ export default function Reports() {
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+  const formatCurrency = formatMoney;
 
   // Summary stats (Calculated from transactions for better consistency)
   const totalRevenue = transactions.filter(t => t.type === 'Out').reduce((s, t) => s + t.total, 0);

@@ -28,6 +28,7 @@ desktop/private/
 desktop/src-tauri/target/
 desktop/src-tauri/gen/
 desktop/artifacts/
+output/
 
 # Logs
 npm-debug.log*

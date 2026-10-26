@@ -6,6 +6,7 @@ import DataNotice from '@/components/DataNotice';
 import { useMounted } from '@/hooks/useMounted';
 import { errorMessage } from '@/lib/errors';
 import { API_URL, PROXY, apiFetch as fetch } from '@/lib/api';
+import { formatMoney } from '@/lib/money';
 
 import React, { useState } from 'react';
 import useSWR from 'swr';
@@ -199,8 +200,7 @@ export default function Production() {
     }
   };
 
-  const formatCurrency = (val: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'PKR' }).format(val);
+  const formatCurrency = formatMoney;
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);

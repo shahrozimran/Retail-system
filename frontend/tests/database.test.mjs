@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { PGlite } from '@electric-sql/pglite';
+import { commitCustomerEntry } from '../src/lib/customer-entry-server.ts';
 
 const ADMIN='11111111-1111-4111-8111-111111111111', USER='22222222-2222-4222-8222-222222222222';
 const SESSION='33333333-3333-4333-8333-333333333333', OTHER_SESSION='44444444-4444-4444-8444-444444444444';
@@ -124,6 +125,25 @@ test('payments, ledger isolation, immutable history, reference deletes and SKU u
   const product=(await read('products'))[0];
   await assert.rejects(mutate(request({action:'delete_product',productUuid:product.uuid})),/foreign key/);
   await assert.rejects(mutate(request({action:'add_product',productUuid:product.uuid,sku:product.sku,name:'Duplicate',category:'',buyPrice:0,salePrice:0,quantity:0,minStock:0,status:'Active',rawMaterials:[]})),/unique/);
+});
+
+test('customer ledger confirmation survives a lost readback and retry without double-posting', async () => {
+  const uuid = (await mutate(request({ action: 'add_customer', name: 'Confirmation fixture' }))).uuid;
+  const entry = request({ action: 'record_customer_payment', customerUuid: uuid, type: 'Receivable', amount: 20000, description: 'Important record' });
+  const execute = async (name, args) => name === 'retail_mutate' ? mutate(args.p_payload) : { success: true, data: await read(args.p_action, args.p_customer_uuid) };
+  await assert.rejects(commitCustomerEntry(entry, async (name, args) => {
+    if (name === 'retail_read') throw new Error('Confirmation read lost');
+    return execute(name, args);
+  }), error => error.code === 'ENTRY_CONFIRMATION_PENDING');
+  const confirmed = await commitCustomerEntry(entry, execute);
+  assert.equal(confirmed.customer.balance, 20000);
+  assert.equal(confirmed.ledger.length, 1);
+  assert.equal(confirmed.ledger[0].amount, 20000);
+  const payable = await commitCustomerEntry(request({ action: 'record_customer_payment', customerUuid: uuid, type: 'Payable', amount: 3500.25, description: 'Payable adjustment' }), execute);
+  assert.equal(payable.customer.balance, 16499.75);
+  assert.equal(payable.ledger.length, 2);
+  assert.equal(payable.ledger.find(row => row.description === 'Payable adjustment').balanceSnapshot, 16499.75);
+  assert.deepEqual((await read('customers')).find(c => c.uuid === uuid).balance, 16499.75);
 });
 
 test('revoked sessions and changed account emails fail database authorization',async()=>{

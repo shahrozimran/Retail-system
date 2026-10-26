@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { ApiError, checkOrigin, readJson, READ_ACTIONS, WRITE_ACTIONS } from '@/lib/server';
 import { requireSession, rpc, type UserSession } from '@/lib/supabase';
 import { clearSession, writeSession } from '@/lib/auth-cookies';
+import { commitCustomerEntry } from '@/lib/customer-entry-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,7 +25,10 @@ async function handle(request: NextRequest) {
     } else {
       const payload = await readJson(request);
       if (typeof payload.action !== 'string' || !WRITE_ACTIONS.has(payload.action)) throw new ApiError('Unknown or immutable action.');
-      data = await rpc(session.client, 'retail_mutate', { p_payload: payload });
+      const client = session.client;
+      data = payload.action === 'record_customer_payment'
+        ? await commitCustomerEntry(payload, (name, parameters) => rpc(client, name, parameters))
+        : await rpc(client, 'retail_mutate', { p_payload: payload });
     }
     const response = NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });
     return session.refreshed ? writeSession(response, session) : response;
