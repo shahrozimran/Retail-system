@@ -14,6 +14,10 @@ type RawMaterial = {
   requiredPerProduct: number;
 };
 
+type RawMaterialDraft = Omit<RawMaterial, 'requiredPerProduct'> & {
+  requiredPerProduct: string;
+};
+
 type Product = {
   uuid: string;
   sku: string;
@@ -87,7 +91,7 @@ export default function Inventory() {
   const [pQty, setPQty] = useState('');
   const [pMin, setPMin] = useState('10');
   const [pStatus, setPStatus] = useState('Active');
-  const [pRawMaterials, setPRawMaterials] = useState<RawMaterial[]>([]);
+  const [pRawMaterials, setPRawMaterials] = useState<RawMaterialDraft[]>([]);
   const [pLoading, setPLoading] = useState(false);
 
   const showToast = (msg: string, type: 'success' | 'error') => {
@@ -110,7 +114,7 @@ export default function Inventory() {
     setPBuy(String(p.buyPrice)); setPSale(String(p.salePrice));
     setPQty(String(p.quantity)); setPMin(String(p.minStock));
     setPStatus(p.status);
-    setPRawMaterials(p.rawMaterials || []);
+    setPRawMaterials((p.rawMaterials || []).map(rm => ({ ...rm, requiredPerProduct: String(rm.requiredPerProduct) })));
     setIsProductModalOpen(true);
   };
 
@@ -118,12 +122,13 @@ export default function Inventory() {
     e.preventDefault();
     if (!API_URL) { showToast('API URL not configured in .env.local', 'error'); return; }
     setPLoading(true);
+    const rawMaterials: RawMaterial[] = pRawMaterials.map(rm => ({ ...rm, requiredPerProduct: Number(rm.requiredPerProduct) }));
     const payload = {
       action: productModalMode === 'add' ? 'add_product' : 'update_product',
       productUuid: pUuid, sku: pSku, name: pName, category: pCat,
       buyPrice: Number(pBuy), salePrice: Number(pSale), quantity: Number(pQty) || 0, minStock: Number(pMin),
       status: pStatus,
-      rawMaterials: pRawMaterials,
+      rawMaterials,
     };
 
     const tempUuid = pUuid || 'temp-' + crypto.randomUUID();
@@ -138,7 +143,7 @@ export default function Inventory() {
       potentialQuantity: calculatePotentialProduction(),
       minStock: Number(pMin),
       status: pStatus,
-      rawMaterials: pRawMaterials
+      rawMaterials
     };
 
     const updatePromise = postToAPI(payload).then(res => {
@@ -254,12 +259,13 @@ export default function Inventory() {
     let minPossible = Infinity;
     
     pRawMaterials.forEach(rm => {
-      if (rm.requiredPerProduct > 0) {
+      const requiredPerProduct = Number(rm.requiredPerProduct);
+      if (requiredPerProduct > 0) {
         // Find current stock from global list if UUID exists
         const globalRM = globalRawMaterials.find(g => g.uuid === rm.uuid);
         const stock = globalRM ? globalRM.stock : (rm.quantity || 0);
         
-        const possible = Math.floor(stock / rm.requiredPerProduct);
+        const possible = Math.floor(stock / requiredPerProduct);
         if (possible < minPossible) minPossible = possible;
       }
     });
@@ -460,11 +466,11 @@ export default function Inventory() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Buy Price (PKR) <span className="text-red-400">*</span></label>
-                  <input required type="number" step="0.01" min="0" value={pBuy} onChange={(e) => setPBuy(sanitizeNum(e.target.value))} className={inputClass} placeholder="0.00" />
+                  <input required type="number" step="0.01" min="0" value={pBuy} onChange={(e) => setPBuy(sanitizeNum(e.target.value))} className={inputClass} placeholder="0" />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-neutral-400 mb-1.5">Sale Price (PKR) <span className="text-red-400">*</span></label>
-                  <input required type="number" step="0.01" min="0" value={pSale} onChange={(e) => setPSale(sanitizeNum(e.target.value))} className={inputClass} placeholder="0.00" />
+                  <input required type="number" step="0.01" min="0" value={pSale} onChange={(e) => setPSale(sanitizeNum(e.target.value))} className={inputClass} placeholder="0" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -488,7 +494,7 @@ export default function Inventory() {
                   <label className="text-sm font-bold text-white">Raw Materials Composition</label>
                   <button 
                     type="button" 
-                    onClick={() => setPRawMaterials([...pRawMaterials, { name: '', quantity: 0, requiredPerProduct: 0.01 }])}
+                    onClick={() => setPRawMaterials([...pRawMaterials, { name: '', quantity: 0, requiredPerProduct: '' }])}
                     className="text-xs bg-neutral-800 hover:bg-neutral-700 text-neutral-300 px-2.5 py-1.5 rounded-lg border border-neutral-700 flex items-center gap-1.5 transition-colors"
                   >
                     <Plus className="w-3 h-3" /> Select Material
@@ -539,20 +545,20 @@ export default function Inventory() {
                         </div>
                         <div className="flex items-center gap-3">
                           <div className="flex-1">
-                            <label className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Required per Product</label>
+                            <label htmlFor={`required-per-product-${idx}`} className="text-[10px] uppercase tracking-wider font-bold text-neutral-500 mb-1 block">Required per Product</label>
                             <input 
+                              id={`required-per-product-${idx}`}
                               required 
                               type="number" 
                               min="0.01"
                               step="0.01"
                               value={rm.requiredPerProduct} 
                               onChange={(e) => {
-                                const newRM = [...pRawMaterials];
-                                newRM[idx].requiredPerProduct = Number(sanitizeNum(e.target.value));
-                                setPRawMaterials(newRM);
+                                const value = sanitizeNum(e.target.value);
+                                setPRawMaterials(current => current.map((material, index) => index === idx ? { ...material, requiredPerProduct: value } : material));
                               }}
                               className="w-full bg-base-950 border border-base-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-white transition-colors"
-                              placeholder="0.00" 
+                              placeholder="0" 
                             />
                           </div>
                         </div>
