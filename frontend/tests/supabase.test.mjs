@@ -90,5 +90,8 @@ test('database errors distinguish atomic rollback from uncertain network failure
   assert.equal(databaseError({code:'23503'}).status,409);
   assert.equal(databaseError({code:'42501'}).rolledBack,false);
   assert.equal(databaseError({code:'PGRST000'}).rolledBack,false);
+  const stale = databaseError({code:'23505',message:'This order changed in another window. Refresh before editing or deleting it.'});
+  assert.equal(stale.rolledBack,true);assert.match(stale.message,/changed in another window/);
+  assert.doesNotMatch(databaseError({code:'23505',message:'private internal detail'}).message,/private internal detail/);
   mock();assert.ok(supabaseClient());
 });

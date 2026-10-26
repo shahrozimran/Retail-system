@@ -28,6 +28,7 @@ before(async()=>{
     insert into auth.users(id,email) values('${ADMIN}','admin@example.invalid'),('${USER}','other@example.invalid');
     insert into auth.sessions(id,user_id) values('${SESSION}','${ADMIN}'),('${OTHER_SESSION}','${USER}');`);
   await db.exec(fs.readFileSync(new URL('../../supabase/migrations/202610260001_retail.sql',import.meta.url),'utf8'));
+  await db.exec(fs.readFileSync(new URL('../../supabase/migrations/202610260002_transaction_corrections.sql',import.meta.url),'utf8'));
   await db.query('insert into public.retail_admin(user_id,email) values($1,$2)',[ADMIN,'admin@example.invalid']);
   await identity();
 });
@@ -45,7 +46,7 @@ test('migration denies anonymous and non-admin access, including direct table an
 });
 
 test('fresh migration creates no business entries or sample data',async()=>{
-  for(const table of ['products','raw_materials','customers','sales_batches','transactions','finances','customer_ledger','productions','operations','audit_log']) {
+  for(const table of ['products','raw_materials','customers','sales_batches','transactions','finances','customer_ledger','productions','operations','audit_log','transaction_changes']) {
     assert.equal((await db.query(`select count(*)::int as count from public.${table}`)).rows[0].count,0);
   }
   assert.equal((await db.query('select balance from public.finance_account')).rows[0].balance,'0.00');
@@ -101,7 +102,7 @@ test('database boundary rejects negative, typed-string, fractional, unknown and 
   const product=(await read('products'))[0];
   const good={action:'transaction',productUuid:product.uuid,type:'Out',qtyChange:1,unitPrice:2};
   for(const change of [{qtyChange:-1},{qtyChange:'1'},{qtyChange:1.5},{unitPrice:-2},{unitPrice:0.001},{type:'unknown'},{injected:true},{requestedAt:0}]) await assert.rejects(mutate(request({...good,...change})));
-  await assert.rejects(mutate(request({action:'delete_transaction',transactionId:randomUUID()})),/immutable/);
+  await assert.rejects(mutate(request({action:'delete_unrecognized_record',transactionId:randomUUID()})),/immutable/);
 });
 
 test('production consumes normalized material quantities atomically and forbids duplicate recipes',async()=>{
@@ -115,7 +116,7 @@ test('production consumes normalized material quantities atomically and forbids 
   const before=await read('dashboard');await assert.rejects(mutate(request({action:'process_production',productUuid:product.uuid,qtyProduced:100})),/Insufficient/);assert.deepEqual(await read('dashboard'),before);
 });
 
-test('payments, ledger isolation, immutable history, reference deletes and SKU uniqueness are enforced',async()=>{
+test('payments, ledger isolation, reference deletes and SKU uniqueness are enforced',async()=>{
   const first=(await read('customers'))[0];
   const second=(await mutate(request({action:'add_customer',name:'Second'}))).uuid;
   await mutate(request({action:'record_customer_payment',customerUuid:second,type:'Receivable',amount:2.5,description:'Second only\nWith a second line'}));

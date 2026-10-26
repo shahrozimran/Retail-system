@@ -40,6 +40,17 @@ test('desktop login and requests use the bounded Rust bridge and in-memory token
   assert.equal(JSON.parse(calls.at(-1).args.request.body).requestId, receipt);
   const afterNavigation = await import('../src/lib/api.ts?new-dashboard-document');
   assert.equal(await afterNavigation.hasSession(), true, 'The desktop session must survive a new page document.');
+  for (const action of ['update_transaction', 'delete_transaction', 'update_transaction_batch', 'delete_transaction_batch']) {
+    const payload = { action, batchId: '11111111-1111-4111-8111-111111111111', expectedRevision: 1, reason: 'Isolated transport test' };
+    fail = true;
+    await assert.rejects(apiFetch(PROXY, { method: 'POST', body: JSON.stringify(payload) }), /Network response lost/);
+    const original = JSON.parse(calls.at(-1).args.request.body);
+    await apiFetch(PROXY, { method: 'POST', body: JSON.stringify(payload) });
+    const retry = JSON.parse(calls.at(-1).args.request.body);
+    assert.equal(retry.requestId, original.requestId, 'Desktop correction retries preserve the original operation ID.');
+    assert.equal(retry.action, action);
+    assert.equal(calls.at(-1).command, 'retail_request');
+  }
   await assert.rejects(apiFetch('https://evil.example/api/proxy/'), /Invalid API destination/);
   await logout();
   assert.equal(await afterNavigation.hasSession(), false, 'Logout must clear the native session for every document.');

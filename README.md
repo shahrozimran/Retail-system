@@ -38,4 +38,4 @@ The Tauri desktop application uses the same interface, authorized account and ho
 
 Run `npm test`, `npm run typecheck`, `npm run lint`, `npm audit --audit-level=low`, and both build commands. The suite runs migrations and business operations against an isolated PostgreSQL instance via PGlite, plus mocked Supabase Auth integration and client retry tests. Test records exist only in that isolated process and are not sent to the hosted project.
 
-Financial transactions remain immutable. Corrections require separate records; customers/materials/products referenced by business history cannot be deleted. Preserve the audit and operation tables when maintaining the database.
+The transaction correction migration enables admin Edit/Delete controls for individual entries and complete orders, with revision checks, a required reason and a before/after audit archive. Stock, finances and customer balances update atomically. Customers/materials/products referenced by business history cannot be deleted. Preserve the audit and operation tables when maintaining the database. See [transaction correction setup](supabase/TRANSACTION_CORRECTIONS.md).

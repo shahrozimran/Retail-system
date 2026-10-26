@@ -2,7 +2,7 @@ export const ACCESS_COOKIE = 'retail_access';
 export const REFRESH_COOKIE = 'retail_refresh';
 export const REFRESH_SECONDS = 7 * 24 * 60 * 60;
 export const READ_ACTIONS = new Set(['dashboard', 'products', 'transactions', 'reports', 'productions', 'customers', 'customer_ledger', 'raw_materials']);
-export const WRITE_ACTIONS = new Set(['transaction', 'batch_transaction', 'add_product', 'update_product', 'delete_product', 'process_production', 'add_customer', 'record_customer_payment', 'delete_customer', 'add_raw_material', 'update_raw_material', 'delete_raw_material']);
+export const WRITE_ACTIONS = new Set(['transaction', 'batch_transaction', 'update_transaction', 'delete_transaction', 'update_transaction_batch', 'delete_transaction_batch', 'add_product', 'update_product', 'delete_product', 'process_production', 'add_customer', 'record_customer_payment', 'delete_customer', 'add_raw_material', 'update_raw_material', 'delete_raw_material']);
 
 export class ApiError extends Error {
   status: number;

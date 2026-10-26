@@ -3,6 +3,8 @@ import { ApiError, checkOrigin, readJson, READ_ACTIONS, WRITE_ACTIONS } from '@/
 import { requireSession, rpc, type UserSession } from '@/lib/supabase';
 import { clearSession, writeSession } from '@/lib/auth-cookies';
 import { commitCustomerEntry } from '@/lib/customer-entry-server';
+import { commitTransactionCorrection } from '@/lib/transaction-correction-server';
+import { CORRECTION_ACTIONS } from '@/lib/transaction-correction';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +30,8 @@ async function handle(request: NextRequest) {
       const client = session.client;
       data = payload.action === 'record_customer_payment'
         ? await commitCustomerEntry(payload, (name, parameters) => rpc(client, name, parameters))
+        : CORRECTION_ACTIONS.has(payload.action)
+        ? await commitTransactionCorrection(payload, (name, parameters) => rpc(client, name, parameters))
         : await rpc(client, 'retail_mutate', { p_payload: payload });
     }
     const response = NextResponse.json(data, { headers: { 'Cache-Control': 'private, no-store' } });

@@ -1,9 +1,10 @@
 # Supabase setup — empty business database
 
-## Run these two files in order
+## Run these files in order
 
 1. `migrations/202610260001_retail.sql`: schema, constraints, RLS, transactional business RPCs and a version-only health function. Run once in this project's SQL Editor as `postgres`. It creates only the zero-valued internal finance account; all business tables are empty. A second manual run is intentionally rejected rather than dropping existing tables.
 2. `private/admin-bootstrap.sql`: generated locally for the requested account. This separate file is ignored by Git and contains an email plus a salted bcrypt verifier. It creates/updates that Auth account and email identity, confirms its email, revokes that account's prior sessions and assigns the single application-admin slot. It does not insert products, materials, customers, sales or ledger history. Never publish this file. It is not included in automatic public migrations.
+3. `migrations/202610260002_transaction_corrections.sql`: enables admin transaction edits/deletions, stale-edit protection and an audit archive. It preserves existing entries during installation and can be rerun safely. Existing installations need only this upgrade, not the original migration or account bootstrap. See `TRANSACTION_CORRECTIONS.md`.
 
 No old database export, import script or sample seed is included. `config.toml` disables local seed execution and local public signup. Hosted Auth settings must also be configured in the dashboard; changing this local file alone does not update the hosted project.
 
@@ -50,6 +51,6 @@ Every count should be zero before you add business entries. The internal `financ
 
 ## Transaction and access rules
 
-`retail_mutate` accepts the current API actions and validates every field again in PostgreSQL. It posts stock, sale/purchase rows, finances, customer balances/ledgers, audit and operation records in one transaction. Production likewise consumes materials and records finished goods/history atomically. A failed statement rolls all changes back. Completed operation IDs return their saved result on retries. Authenticated clients cannot directly mutate tables, self-assign admin access, or edit/delete posted transaction history.
+`retail_mutate` accepts the current API actions and validates every field again in PostgreSQL. It posts stock, sale/purchase rows, finances, customer balances/ledgers, audit and operation records in one transaction. Production likewise consumes materials and records finished goods/history atomically. A failed statement rolls all changes back. Completed operation IDs return their saved result on retries. Authenticated clients cannot directly mutate tables or self-assign admin access. The correction upgrade permits the existing admin to edit/delete transactions through revision-checked, audited RPC actions that reconcile linked stock and balances atomically.
 
 `retail_read` returns the existing frontend response shapes for dashboard, products, raw materials, transactions, reports, productions, customers and customer ledgers. It checks the single admin, live Auth session, account email, ban state and session deadline. Direct table reads are also protected by RLS.

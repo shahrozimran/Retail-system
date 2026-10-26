@@ -31,7 +31,15 @@ export function databaseError(error: BackendError): ApiError {
   if (error.code === '42501' || error.code === 'PGRST301' || error.code === 'PGRST303') return new ApiError('This account is not authorized.', 403, 'FORBIDDEN');
   let result: ApiError;
   if (error.code === '23503') result = new ApiError('This record is referenced by business history or another record.', 409, 'CONFLICT');
-  else if (error.code === '23505') result = new ApiError('The identifier or SKU is already in use, or stock has changed. Refresh and check the record.', 409, 'CONFLICT');
+  else if (error.code === '23505') {
+    const correctionMessages = new Set([
+      'This order changed in another window. Refresh before editing or deleting it.',
+      'This correction would leave insufficient stock. Stock received by this order may already have been used.',
+      'The linked finance records are incomplete. Review the order before correcting it.',
+      'The linked customer ledger is incomplete. Review the order before correcting it.',
+    ]);
+    result = new ApiError(error.message && correctionMessages.has(error.message) ? error.message : 'The identifier or SKU is already in use, or stock has changed. Refresh and check the record.', 409, 'CONFLICT');
+  }
   else if (error.code === '23514' || error.code === '22003') result = new ApiError('A quantity, balance, or amount exceeds its allowed range.', 400);
   else if (error.code === '22023') result = new ApiError(error.message || 'Invalid request.', 400);
   else if (error.code?.startsWith('22')) result = new ApiError('Invalid request value.', 400);
